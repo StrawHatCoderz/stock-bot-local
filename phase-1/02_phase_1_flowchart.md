@@ -3,9 +3,9 @@
 Same proven style as `docs/superpowers/specs/2026-07-06-stock-platform-chatbot-zeroisation-flowchart-custom-ui.md`:
 single top-to-bottom chains, color-coded by tech-stack layer, no
 side-by-side lanes — that's what avoids crossing edges. Three diagrams:
-the generic agent-turn loop, the main business flow, and the stretch
-fuzzy-match sub-flow (kept separate so it doesn't force a second feedback
-loop into the main chain).
+the generic agent-turn loop, the main business flow, and the product-name
+and area resolution sub-flow (kept separate so it doesn't force a second
+feedback loop into the main chain).
 
 ## Tech stack per layer (color legend)
 
@@ -13,7 +13,7 @@ loop into the main chain).
 |---|---|---|---|
 | 🟡 pale yellow | Custom Web UI | Browser (HTML/JS) | Renders chat, sends user input, displays replies |
 | 🟦 blue | Agent + Planner + Memory | Node.js backend, Claude API via Claude SDK | Calls Claude API with history + tool schemas; Planner decides reply-vs-tool-call; Memory holds conversation history |
-| 🟪 purple | ToolExecutor | Node.js | `authenticate_user`, `validate_stock_items`, `submit_zeroisation_request` |
+| 🟪 purple | ToolExecutor | Node.js | `authenticate_user`, `list_store_areas`, `validate_stock_items`, `submit_zeroisation_request` |
 | 🟩 green | Mock API service | Java Spring Boot | AuthAPI, ValidationAPI, StockAPI — in-memory, production-shaped |
 | 🟨 gold (diamond) | — | — | Decision point |
 | 🟥 pink (hexagon) | Event bus | Kafka (simulated) | `stock.zeroisation.completed` topic |
@@ -46,7 +46,10 @@ flowchart TD
 
 Adds a store-scope-authorization decision (separate from "product
 valid?") that wasn't in the earlier brainstorming version of this
-flowchart, per `api-contract.md`'s `STORE_MISMATCH` check.
+flowchart, per `api-contract.md`'s `STORE_MISMATCH` check. No preset
+options menu — after auth, the agent asks an open-ended question and
+recognizes intent from free text (see `phase_1_plan.md`'s "Recognizing
+intent without a menu").
 
 ```mermaid
 flowchart TD
@@ -56,24 +59,33 @@ flowchart TD
     ToolAuth["ToolExecutor: authenticate_user"] --> AuthAPI
     AuthAPI[("Spring Boot: AuthAPI")] --> AuthOK{"Authenticated?"}
     AuthOK -->|"No: 401 INVALID_CREDENTIALS"| Reject["Reply: invalid credentials, no options shown"] --> End1(["End"])
-    AuthOK -->|"Yes: 200 user_id, role, store_id, token"| Options
+    AuthOK -->|"Yes: 200 user_id, role, store_id, token"| AskOpen
 
-    Options["List preset options:<br/>1 Zeroisation (enabled) - 2 Waste Adjustment - 3 Transfer (coming soon)"] --> SelectZero
-    SelectZero["User selects Zeroisation"] --> AskItems
-    AskItems["Ask: which items, and why? (no quantity)"] --> ParseItems
-    ParseItems["Parse free text into line items: product + reason"] --> ToolValidate
+    AskOpen["Ask open-ended: what would you like to do?<br/>(no preset options)"] --> ParseItems
+    ParseItems["Parse free text: recognize intent shape,<br/>extract product(s) + reason if Zeroisation-shaped"] --> IntentCheck
+    IntentCheck{"Which shape?<br/>(Zeroisation / Waste / Transfer)"}
+    IntentCheck -->|"Waste-shaped: partial quantity implied"| DeclineWaste["Reply: partial adjustments not supported yet,<br/>offer to zero out the product entirely instead"] --> AskOpen
+    IntentCheck -->|"Transfer-shaped: destination store implied"| DeclineTransfer["Reply: transfers not supported yet,<br/>name Zeroisation as what's currently supported"] --> AskOpen
+    IntentCheck -->|"Zeroisation-shaped: full write-off"| LocationCheck
+
+    LocationCheck{"Does message imply a location?<br/>(e.g. 'near some x area')"}
+    LocationCheck -->|"No"| ToolValidate
+    LocationCheck -->|"Yes"| ListAreas
+    ListAreas["ToolExecutor: list_store_areas"] --> AreaAPI
+    AreaAPI[("Spring Boot: ValidationAPI (areas)")] --> ResolveArea
+    ResolveArea["Claude matches the phrase against area<br/>descriptions to resolve area_code<br/>(asks user to clarify if unsure)"] --> ToolValidate
 
     ToolValidate["ToolExecutor: validate_stock_items"] --> ValidationAPI
     ValidationAPI[("Spring Boot: ValidationAPI")] --> StoreOK{"Store-scope OK?<br/>token store_id == request store_id"}
     StoreOK -->|"No: 403 STORE_MISMATCH"| RejectStore["Reply: not authorized for this store<br/>(logged as security event)"] --> End3(["End"])
     StoreOK -->|"Yes"| AllValid{"All items valid?<br/>(product exists, not already zero)"}
 
-    AllValid -->|"No: PRODUCT_NOT_FOUND / ALREADY_ZERO<br/>(see stretch sub-flow for fuzzy-match handling)"| ReportInvalid["Report invalid item(s) and why"]
-    ReportInvalid --> AskFix["Ask user to correct or drop invalid item(s)"]
+    AllValid -->|"No: PRODUCT_NOT_FOUND / PRODUCT_AMBIGUOUS /<br/>AREA_AMBIGUOUS / ALREADY_ZERO<br/>(see resolution sub-flow for handling)"| ReportInvalid["Report invalid item(s) and why"]
+    ReportInvalid --> AskFix["Ask user to correct, drop, or pick<br/>from candidates for invalid item(s)"]
     AskFix -->|"corrected item(s)"| ToolValidate
 
     AllValid -->|"Yes: results all valid"| ConfirmItems
-    ConfirmItems["Show discovered on-hand quantity per item,<br/>ask user to confirm before zeroing"] -->|"user confirms"| ToolSubmit
+    ConfirmItems["Show discovered on-hand quantity AND resolved<br/>area per item, ask user to confirm before zeroing"] -->|"user confirms"| ToolSubmit
     ToolSubmit["ToolExecutor: submit_zeroisation_request"] --> StockAPI
     StockAPI[("Spring Boot: StockAPI")] -->|"200 request_id, status COMPLETED"| Kafka
     Kafka{{"Kafka topic: stock.zeroisation.completed (simulated)"}} -->|"event consumed downstream"| Confirm
@@ -87,32 +99,42 @@ flowchart TD
     classDef eventLayer fill:#F8BBD0,stroke:#88134f,stroke-width:2px,color:#4a0a2c
 
     class Start,End1,End2,End3 uiLayer
-    class Auth,Options,SelectZero,AskItems,ParseItems,ConfirmItems,ReportInvalid,AskFix,Confirm,Reject,RejectStore agentLayer
-    class ToolAuth,ToolValidate,ToolSubmit toolLayer
-    class AuthAPI,ValidationAPI,StockAPI apiLayer
-    class AuthOK,AllValid,StoreOK decision
+    class Auth,AskOpen,ParseItems,DeclineWaste,DeclineTransfer,ResolveArea,ConfirmItems,ReportInvalid,AskFix,Confirm,Reject,RejectStore agentLayer
+    class ToolAuth,ToolValidate,ToolSubmit,ListAreas toolLayer
+    class AuthAPI,ValidationAPI,StockAPI,AreaAPI apiLayer
+    class AuthOK,AllValid,StoreOK,IntentCheck,LocationCheck decision
     class Kafka eventLayer
 ```
 
-## 3. Stretch: fuzzy-match sub-flow (optional, droppable)
+## 3. Product-name and area resolution sub-flow (typo-suggestion is stretch; disambiguation is baseline)
 
-What happens inside "Report invalid item(s) and why" above, **only if**
-the fuzzy-match stretch story ships (see `phase_1_plan.md`'s cut line).
-Kept as its own small diagram rather than a second feedback loop in the
-main chain above, to keep that chain crossing-free.
+What happens inside "Report invalid item(s) and why" above. Three
+distinct paths live here, per `api-contract.md`'s `PRODUCT_NOT_FOUND` /
+`PRODUCT_AMBIGUOUS` / `AREA_AMBIGUOUS` split: a near-miss spelling gets a
+single suggested correction (**stretch, droppable per
+`phase_1_plan.md`'s cut line**), while a generic name matching multiple
+real SKUs, or matching one SKU stocked in multiple areas, each get a
+pick-one list (**baseline — always built**, since resolving ambiguity
+itself instead of requiring the user to be precise upfront is the whole
+point of this design). Kept as its own small diagram rather than a second
+feedback loop in the main chain above, to keep that chain crossing-free.
 
 ```mermaid
 flowchart TD
-    Entry(["PRODUCT_NOT_FOUND for an item"]) --> FuzzyCheck{"Fuzzy match found in catalog?"}
-    FuzzyCheck -->|"Yes"| Suggest["Suggest closest catalog name,<br/>ask user to confirm"]
+    Entry(["PRODUCT_NOT_FOUND, PRODUCT_AMBIGUOUS,<br/>or AREA_AMBIGUOUS for an item"]) --> Kind{"Which case?"}
+    Kind -->|"Not found, but a close typo match exists (stretch)"| Suggest["Suggest closest catalog name,<br/>ask user to confirm"]
     Suggest -->|"user confirms"| Revalidate(["Re-validate with corrected name<br/>(rejoins main flow at validate_stock_items)"])
-    FuzzyCheck -->|"No"| Fallback(["Fall back to manual correction<br/>(main flow's 'ask user to correct or drop')"])
+    Kind -->|"Ambiguous: multiple real SKUs match (baseline)"| Candidates["List candidate product names<br/>from PRODUCT_AMBIGUOUS's candidates,<br/>ask user to pick one"]
+    Candidates -->|"user picks one"| Revalidate
+    Kind -->|"Ambiguous: one SKU, multiple areas (baseline)"| AreaCandidates["List candidate areas<br/>from AREA_AMBIGUOUS's candidates,<br/>ask user to pick one"]
+    AreaCandidates -->|"user picks one"| Revalidate
+    Kind -->|"Not found, no match at all"| Fallback(["Fall back to manual correction<br/>(main flow's 'ask user to correct or drop')"])
 
     classDef uiLayer fill:#FFF3B0,stroke:#7a6500,stroke-width:2px,color:#3a2f00
     classDef agentLayer fill:#87CEEB,stroke:#1a4f66,stroke-width:2px,color:#04283a
     classDef decision fill:#FFD54F,stroke:#7a5c00,stroke-width:2px,color:#3a2c00
 
     class Entry,Revalidate,Fallback uiLayer
-    class Suggest agentLayer
-    class FuzzyCheck decision
+    class Suggest,Candidates,AreaCandidates agentLayer
+    class Kind decision
 ```

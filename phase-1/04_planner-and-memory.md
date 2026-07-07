@@ -42,6 +42,31 @@ line items (that's a separate parsing step feeding into the
 `validate_stock_items` tool call), and it never inspects or modifies tool
 arguments — those come from Claude, not from the Planner.
 
+## Where the "reasoning agent" pattern lives
+
+Recognizing what the user even wants — is this Zeroisation-shaped, or does
+it imply a partial quantity (Waste-shaped) or a destination store
+(Transfer-shaped), per `phase_1_plan.md`'s "Recognizing intent without a
+menu" — free-text entity extraction (`"eggs are damaged"` →
+`{product_name: "eggs", reason: "damaged"}`), matching a vague location
+phrase like "near some x area" against the real area descriptions
+`list_store_areas` returns, disambiguating a generic name against multiple
+catalog matches (`PRODUCT_AMBIGUOUS`) or one product stocked in multiple
+areas (`AREA_AMBIGUOUS`, see `api-contract.md`), and tracking what's still
+known vs. missing before a tool can be called — none of that is Planner
+logic. It's Claude's own reasoning, driven by the system prompt and the 4
+tool schemas, re-derived fresh on every turn from whatever is already in
+the conversation history.
+
+This is exactly why Memory matters here: because the full history persists
+and is replayed on every Claude API call, Claude doesn't need a separate
+"known vs. missing" object handed to it — it reconstructs that from the
+transcript Memory already holds. Making the agent smarter changes the
+system prompt and the tool response shapes (e.g. adding `PRODUCT_AMBIGUOUS`'s
+`candidates` list for Claude to read), not the Planner's code. The Planner's
+job stays exactly what it was: mechanically route the response Claude
+already produced.
+
 ## Memory
 
 **What it does:** holds the conversation history for one session, and is

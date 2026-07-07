@@ -8,8 +8,13 @@ before the sprint starts.
 
 ## Scope
 
-- Phase 1 covers **only Zeroisation**. Waste Adjustment and STR-STR
-  Transfer are shown in the UI as disabled/"coming soon," not built.
+- Phase 1 covers **only Zeroisation**. **Superseded by a later round of
+  this same planning effort:** there is no preset options menu at all —
+  Waste Adjustment and STR-STR Transfer aren't listed anywhere in the UI,
+  disabled or otherwise. The agent is conversational from the first turn;
+  when free text implies one of those unbuilt request types, the agent
+  recognizes the shape and declines conversationally instead of executing
+  it. See `phase_1_plan.md`'s "Recognizing intent without a menu."
 - **No approval workflow.** Any authenticated user's submission executes
   directly once validated. Phase 1's demo and seed data assume the bot is
   used by **Store Managers only** — the underlying role/RBAC plumbing

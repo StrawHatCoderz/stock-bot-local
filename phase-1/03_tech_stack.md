@@ -11,15 +11,21 @@ vertical without needing a third stack in the mix.
 
 **Components, all in Node:**
 - **Agent** — calls the Claude API directly via the Claude SDK with the
-  full conversation history and the 3 tool schemas.
+  full conversation history and the 4 tool schemas.
 - **Planner** — inspects Claude's response: plain text (send to the UI,
   wait for the next user message) or a `tool_use` block (route to
-  ToolExecutor, feed the result back to Claude, repeat).
+  ToolExecutor, feed the result back to Claude, repeat). Extracting
+  entities from free text, matching a vague location phrase (e.g. "near
+  some x area") against the real areas returned by `list_store_areas`,
+  disambiguating an ambiguous product name, and tracking what's still
+  missing before a tool can be called are all Claude's own reasoning,
+  driven by the system prompt and tool schemas — the Planner holds no
+  state or logic beyond this routing decision (see `planner-and-memory.md`).
 - **Memory** — the conversation history array itself; this project has no
   MCP host to hold it for free, so it's built and owned here.
-- **ToolExecutor** — implements the 3 tools (`authenticate_user`,
-  `validate_stock_items`, `submit_zeroisation_request`) and calls the Java
-  mock API over REST per `api-contract.md`.
+- **ToolExecutor** — implements the 4 tools (`authenticate_user`,
+  `list_store_areas`, `validate_stock_items`, `submit_zeroisation_request`)
+  and calls the Java mock API over REST per `api-contract.md`.
 
 ## Java Spring Boot (mock AuthAPI, ValidationAPI, StockAPI)
 
@@ -58,9 +64,18 @@ swap, not an API rewrite:
   role, store_id }`. Password is hashed even in-memory, to keep the swap to
   a real auth service trivial and to enforce the right habit now.
 - **`StoreCatalogRepository`** — `Product { product_id, product_name,
-  store_id, current_quantity }`. Each store has its own catalog subset
-  (not every store carries every product) — seeded via a startup
-  initializer, not hardcoded into controllers.
+  store_id, area_code, current_quantity }`. Each store has its own catalog
+  subset (not every store carries every product) — seeded via a startup
+  initializer, not hardcoded into controllers. The catalog key is
+  `store_id + area_code + product_name`, not just `store_id +
+  product_name`: the same product name can be stocked in more than one
+  area of a store, each with its own `product_id` and quantity (e.g. Eggs
+  in both the Dairy Cooler and Backroom Storage areas).
+- **`AreaRepository`** — `Area { area_code, name, description, store_id }`.
+  `description` is the free-text field Claude reasons over when a user
+  gives a vague location phrase instead of the exact area code or name —
+  see `list_store_areas` in `api-contract.md`. Seeded per store, same as
+  `StoreCatalogRepository`.
 - **`SessionTokenRepository`** — `token → {user_id, store_id, expiry}`,
   shared between `AuthAPI` and `ValidationAPI`/`StockAPI`, simulating the
   session/JWT lookup a real deployment would do. This is what backs the
