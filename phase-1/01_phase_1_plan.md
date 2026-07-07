@@ -1,8 +1,6 @@
 # Phase 1 Plan — Zeroisation
 
-**Basis:** `docs/superpowers/specs/2026-07-06-stock-platform-chatbot-design.md`
-and `docs/superpowers/specs/assumptions.md` (prior design work — referenced,
-not duplicated here). This doc is the live execution plan for a 2-team,
+**Basis:** This doc is the live execution plan for a 2-team,
 2-week build sprint, not the design sign-off record.
 
 ## Scope
