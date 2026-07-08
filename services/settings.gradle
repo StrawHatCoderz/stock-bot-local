@@ -1,0 +1,3 @@
+rootProject.name = 'stock-correction-mock-services'
+
+include 'auth-service', 'validation-service', 'stock-service'
