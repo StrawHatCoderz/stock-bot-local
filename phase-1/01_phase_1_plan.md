@@ -35,63 +35,103 @@ of the request and declines conversationally instead of executing it (see
 ## End-to-end flow
 
 1. User opens the custom web chat UI, sees a username/password login form.
-2. `ToolExecutor: authenticate_user` → `AuthAPI`. Failure → clear
-   rejection, logged, no options shown. Success → `{user_id, name, role,
-   store_id, token}` kept in Memory for the session (see `tech_stack.md`
-   for why this is built here instead of provided for free).
-3. Agent asks an open-ended question (e.g., "Hi Priya, what would you like
+2. `ToolExecutor: authenticate_user` → `POST /api/login`. Failure → clear
+   rejection, logged, no options shown. Success → a bare `{token}`, which
+   Memory keeps for the session.
+3. `ToolExecutor: get_user_details` → `GET /api/me` (token via auth
+   header). `authorized: false` (`UNAUTHORIZED_MANAGER`) → clear
+   rejection, session ends. `authorized: true` → `{employee_id,
+   employee_number, name, email, assignedTo}` kept in Memory —
+   `assignedTo` is the `storeId` used on every later call, `employee_id`
+   becomes `requestedBy` at submission time.
+4. Agent asks an open-ended question (e.g., "Hi Priya, what would you like
    to do?") — no preset options are listed.
-4. User describes the situation in free text (e.g., "eggs are damaged").
-   The agent infers intent directly from this, per "Recognizing intent
-   without a menu" below:
+5. User describes the situation in free text (e.g., "I want to remove
+   eggs from Refrigerator X because it's damaged"). The agent infers
+   intent directly from this, per "Recognizing intent without a menu"
+   below:
    - **Full write-off implied** (damaged/expired/spoiled, no partial
-     quantity) → proceeds as a Zeroisation request, extracting product(s)
-     + reason. **No quantity is ever asked for or parsed** for this
-     path — enforced by `validate_stock_items`' tool schema having no
-     quantity property at all (not just by prompting Claude not to ask),
-     so there's nowhere for a number to go even if the user states one.
+     quantity) → proceeds as a Zeroisation request, extracting product,
+     area (if named), and reason. **No quantity is ever asked for or
+     parsed** — `quantity` on the eventual zeroization request always
+     comes from a stock lookup (step 8), never from user text.
    - **Partial quantity implied** (e.g., "we threw away about 20 damaged
      Coke bottles") → Waste-Adjustment-shaped, not built. Agent declines
      and offers to zero out the product entirely instead.
    - **Destination store implied** (e.g., "we sent 3 cartons to
      Whitefield") → Transfer-shaped, not built. Agent declines and names
      Zeroisation as what it can currently help with.
-   - If the message also implies a location (e.g., "kept near some x
-     area"), the agent calls `ToolExecutor: list_store_areas` → `store_id`
-     from Memory, and matches the vague phrase against the returned area
-     descriptions to resolve an `area_code` — see "Area-based product
-     lookup" below. If no location is implied, no area_code is resolved
-     yet; `ValidationAPI` handles it in the next step.
-5. `ToolExecutor: validate_stock_items` → `ValidationAPI` with `{token,
-   store_id, items:[{product_name, reason, area_code?}]}` — `area_code` is
-   included only if step 4 resolved one. `store_id` always comes from the
-   session token, never from user text.
-6. `ValidationAPI` checks, in order:
-   - **Store-scope authorization**: token's `store_id` matches the
-     request. Mismatch → whole request rejected (`STORE_MISMATCH`),
-     logged as a security event, before any item is looked at.
-   - **Product exists** in that store's catalog (scoped to the given
-     `area_code` if present) → returns `current_quantity` + the resolved
-     area, `PRODUCT_AMBIGUOUS` (name matches more than one real SKU),
-     `AREA_AMBIGUOUS` (name matches in more than one area and no
-     `area_code` was given), or `PRODUCT_NOT_FOUND` / `ALREADY_ZERO`.
-7. All valid → agent echoes the discovered on-hand quantity **and the
-   resolved area** for each item, asks the user to confirm before zeroing
-   (this is the real safety check here, since the user never typed a
-   number to sanity-check against, and area resolution can be wrong even
-   when confident). Some invalid → agent reports exactly which failed and
-   why — presenting the candidate list and asking the user to pick one for
-   `PRODUCT_AMBIGUOUS` or `AREA_AMBIGUOUS`, asking the user to correct or
-   drop otherwise — keeps the valid ones pending, loops back to step 5 for
-   just the corrected items.
-8. On confirmation, `ToolExecutor: submit_zeroisation_request` →
-   `StockAPI`, which zeroes each product's on-hand quantity, generates a
-   `request_id`, returns `COMPLETED` + `quantity_zeroed` per item.
-9. `StockAPI` logs the event it would publish to
-   `stock.zeroisation.completed` (simulated Kafka).
-10. Agent shows the final confirmation (request id, items zeroed).
+6. **If no area was named**, the agent asks for one before doing anything
+   else — this contract has no way to search for a product across a whole
+   store, only within a named area (see "Area and product resolution"
+   below), so an area is always required, not just optional context.
+7. `ToolExecutor: validate_area` → `POST /api/validation/area`
+   `{storeId, areaName}`. `AREA_NOT_FOUND` → agent says so and asks the
+   user to restate or correct the area name, retries this same call — it
+   cannot fall back to searching, since Claude only gets one guess per
+   attempt (no candidate list exists in this contract). `exists: true` →
+   `areaId` resolved, kept for the rest of this request.
+8. **Did the user name a specific product, or mean everything in the
+   area** (e.g. "the whole fridge lost power" vs "the eggs are damaged")?
+   See "Whole-area zeroization" below for the second path — the rest of
+   this list covers the single-product path.
+9. `ToolExecutor: validate_product` → `POST /api/validation/product`
+   `{storeId, areaId, productName}`. `PRODUCT_NOT_FOUND` → agent says the
+   product isn't stocked in that specific area and asks the user to
+   correct the name or the area, retries. `exists: true` → `productId`
+   (+ `sku`) resolved.
+10. `ToolExecutor: get_stock` → `GET /api/stock?storeId&areaId&productId`
+    → `availableQuantity` + `unit`. `availableQuantity: 0` → agent tells
+    the user there's nothing to write off, ends without calling the
+    zeroization endpoint.
+11. `availableQuantity > 0` → agent echoes it back with the resolved area
+    (e.g., "I found 120 BOX of eggs in Refrigerator X — zero them out?")
+    and asks the user to confirm before zeroing — this is the real safety
+    check here, since the user never typed a number to sanity-check
+    against.
+12. On confirmation, `ToolExecutor: create_zeroization` →
+    `POST /api/stock/zeroization` with `quantity` set to the
+    `availableQuantity` just read, `reason` mapped from the user's free
+    text onto a fixed code (e.g. `SPOILED`), `remarks` carrying the
+    original free text, `requestedBy` set to `employee_id`.
+    `status: FAILED` (`ZEROIZATION_FAILED`) → agent reports the failure,
+    offers to retry. `status: SUCCESS` → `zeroizationId` +
+    `transactionId` returned.
+13. `StockAPI` logs the event it would publish to
+    `stock.zeroisation.completed` (simulated Kafka).
+14. Agent shows the final confirmation (`zeroizationId`, item zeroed).
 
 Full request/response shapes: `api-contract.md`.
+
+## Whole-area zeroization
+
+When step 8 above recognizes a whole-area request instead of a
+single-product one, the flow after `validate_area` changes:
+
+1. `ToolExecutor: get_stock` → `GET /api/stock?storeId&areaId` (no
+   `productId`) → the list of every product currently stocked in that
+   area, each with its own `availableQuantity`. An empty `products: []` →
+   agent tells the user there's nothing stocked there, ends.
+2. Agent confirms the **whole list** before acting — not just a quantity,
+   the actual set of products about to be zeroed (e.g., "This will zero
+   out 4 products in Dairy: Eggs (120 BOX), Milk 1L (40 BOX), ... —
+   proceed?"). This matters more here than in the single-product path: a
+   wrong area guess now silently zeroes several unrelated products instead
+   of one, so this confirmation is the only safety check before an
+   irreversible bulk write.
+3. On confirmation, `ToolExecutor: create_area_zeroization` →
+   `POST /api/stock/zeroization/area` with one `reason`/`remarks` pair
+   covering the whole area (e.g. `POWER_FAILURE`, "lost power overnight"),
+   `requestedBy` set to `employee_id`. No per-product `quantity` is sent —
+   same reasoning as the single-product path, just applied to every
+   product the area-wide `get_stock` call already reported.
+4. Same failure/success/Kafka/confirmation handling as the single-product
+   path, applied to the whole `items` list `create_area_zeroization`
+   returns.
+
+If the user gives *different* reasons for different products in the same
+area, that's not a whole-area request — it's several single-product
+requests, handled one at a time via the flow above.
 
 ## Auth scope for Phase 1
 
@@ -99,68 +139,35 @@ One mocked mechanism is built: username/password. Org SSO is documented in
 `tech_stack.md` as a future `AuthProvider` implementation behind the same
 contract — not built or shown in the UI this phase.
 
-## Typo/fuzzy-suggestion — stretch, with a cut line
+## Area and product resolution — single-guess, retry on not-found
 
-**Baseline (always ships):** on `PRODUCT_NOT_FOUND`, the agent says "I
-couldn't find a product called '<X>' in this store's catalog" and asks the
-user to re-type it. Complete and non-blocking on its own.
+The mock API signatures (`api-contract.md`) have no "list areas" or
+"search products" endpoint — `validate_area` and `validate_product` each
+take an exact name and return `exists: true/false`, nothing in between.
+That reshapes what "smart" means here: the agent can't be handed a
+candidate list to turn into a pick-one question (an earlier draft of this
+plan assumed `PRODUCT_AMBIGUOUS`/`AREA_AMBIGUOUS` responses with
+candidates — dropped, since this contract doesn't return them; see
+`api-contract.md`'s "Note on disambiguation"). Instead:
 
-**Stretch (explicitly droppable without rework):** `ValidationAPI` also
-runs a simple fuzzy match against the store's catalog when a product isn't
-found exactly, returning `suggested_product_name` when confidence is high.
-The agent then asks a single yes/no confirm ("did you mean 'Bread'?")
-before re-validating with the corrected name. Owned by Team B
-(`ValidationAPI`) plus one extra Team A confirm-turn; scheduled Day 8 (see
-timeline) — late, because it's safe to cut.
+- Claude produces its single best guess at the area name and product name
+  from the user's free text (e.g. "Refrigerator X" from "kept near
+  refrigerator X," "eggs" from "eggs are damaged").
+- `AREA_NOT_FOUND` or `PRODUCT_NOT_FOUND` → the agent tells the user
+  exactly what didn't match and asks them to restate or correct it, then
+  retries the same validation call. This is a plain conversational
+  correction loop, not a system that shows real alternatives.
+- Product validation is scoped to an already-validated `areaId` — there's
+  no store-wide fallback if the user never names an area, which is why
+  step 6 of the end-to-end flow above always asks for one before
+  validating anything, rather than treating location as optional context.
 
-## Product-name disambiguation — baseline, not stretch
-
-Distinct from the typo-suggestion above: a **generic name matching more
-than one real SKU** (e.g. "milk" matching Milk 500ml / 1L / Lite) returns
-`PRODUCT_AMBIGUOUS` with a `candidates` list (`api-contract.md`), and the
-agent asks the user to pick one before re-validating. This ships
-unconditionally — it's the main example of the agent resolving ambiguity
-itself rather than requiring the user to be precise upfront, so unlike the
-typo-suggestion above it has no cut line. Built into the initial
-`ValidationAPI` implementation (Days 2–5) and the Node-side error/recovery
-handling (Days 6–7) alongside the other error codes — see timeline below.
-
-## Area-based product lookup — baseline, not stretch
-
-A store has multiple areas (e.g. "Dairy Cooler," "Backroom Storage"), each
-with an `area_code`, a `name`, and a free-text `description`. The same
-product name can be stocked in more than one area at once, each with its
-own quantity — so "eggs" alone doesn't always pin down a single row in the
-catalog; which area matters.
-
-Users describe location loosely ("kept near some x area"), not by exact
-area code, so the agent can't just string-match it against `area_code` or
-`name`. Instead: `ToolExecutor: list_store_areas` returns every area's
-`description` for the store, and Claude reasons over that free text to
-figure out which area the user means — the same "expose real data, let
-Claude reason over it" pattern as `PRODUCT_AMBIGUOUS`'s candidate list, not
-a new fuzzy-string-matching algorithm in Node or Java.
-
-Two distinct failure/disambiguation paths exist and shouldn't be
-conflated:
-
-- **The agent can't confidently resolve the location phrase** to one area
-  from `list_store_areas`'s descriptions → it asks the user to clarify
-  before ever calling `validate_stock_items`.
-- **The user names no location at all, and the product turns out to exist
-  in more than one area** → `ValidationAPI` itself detects this and
-  returns `AREA_AMBIGUOUS` with per-area candidates (`api-contract.md`),
-  which the agent turns into a pick-one question.
-
-Either way, the resolved area is always restated in the confirmation step
-("I found 12 eggs in the Dairy Cooler area — zero them out?"), not just
-when the match was uncertain — see step 7 of the end-to-end flow above.
-This ships unconditionally, same as product-name disambiguation: it's core
-to the agent understanding a real description instead of requiring the
-user to state things precisely, so it has no cut line. Built into the
-initial `AreaRepository`/`ValidationAPI` work and the `list_store_areas`
-tool (Days 2–5), with the disambiguation UX turns added in Days 6–7
-alongside the other error/recovery branches — see timeline below.
+The resolved area is always restated in the confirmation step ("I found
+120 BOX of eggs in Refrigerator X — zero them out?"), giving the user one
+more chance to catch a wrong guess before anything is written off. Built
+into the initial `ValidationAPI` work (Days 2–5), with the retry-loop UX
+added in Days 6–7 alongside the other error/recovery branches — see
+timeline below.
 
 ## Recognizing intent without a menu
 
@@ -194,24 +201,31 @@ Planner logic — see "Agent reasoning" below and `planner-and-memory.md`.
 The Planner is, and stays, a mechanical router (`tool_use` → ToolExecutor,
 plain text → UI) — see `planner-and-memory.md`. Everything that looks like
 "reasoning" — recognizing whether a free-text message is Zeroisation-,
-Waste-, or Transfer-shaped, extracting product + reason from a free-text
-sentence, matching a vague location phrase against `list_store_areas`'s
-descriptions, deciding what's still missing before `validate_stock_items`
-can be called, handling a `PRODUCT_AMBIGUOUS` or `AREA_AMBIGUOUS` response
-by asking the user to pick from the candidates — is Claude's own behavior,
-shaped by the system prompt and the tool schemas, not new Node logic.
-Memory's conversation history is what makes this work: Claude re-derives
-what's known and what's missing from the transcript on every turn, rather
-than reading it from a separate state object. Concretely, this phase's
-system prompt work (not existing code, since none exists yet) needs to
-instruct Claude to: recognize a Zeroisation-shaped request and decline the
-other two shapes per "Recognizing intent without a menu" above; extract
-product name(s) and reason(s) from natural sentences without ever asking
-for a quantity; call `list_store_areas` and reason over its descriptions
-when a location is implied; always restate the resolved area in the
-confirmation step; present `PRODUCT_AMBIGUOUS`/`AREA_AMBIGUOUS` candidates
-as pick-one questions; and re-validate once the user disambiguates or
-corrects.
+Waste-, or Transfer-shaped, recognizing a whole-area request ("the whole
+fridge lost power") vs a single-product one ("the eggs are damaged"),
+extracting product/area/reason from a free-text sentence, guessing a
+single area or product name to validate and retrying with a corrected
+guess on `AREA_NOT_FOUND`/`PRODUCT_NOT_FOUND`, mapping the user's own
+words for "why" onto a fixed reason code for `create_zeroization`/
+`create_area_zeroization` while keeping the original wording in `remarks`,
+deciding what's still missing before a tool can be called — is Claude's
+own behavior, shaped by the system prompt and the tool schemas, not new
+Node logic. Memory's conversation history is what makes this work: Claude
+re-derives what's known and what's missing from the transcript on every
+turn, rather than reading it from a separate state object. Concretely,
+this phase's system prompt work (not existing code, since none exists
+yet) needs to instruct Claude to: recognize a Zeroisation-shaped request
+and decline the other two shapes per "Recognizing intent without a menu"
+above; always ask for an area if one wasn't named, since there's no
+store-wide product search to fall back on; distinguish a whole-area
+request from a single-product one per "Whole-area zeroization" above;
+extract product name(s) and reason(s) from natural sentences without ever
+asking for a quantity; retry with a corrected single guess on
+`AREA_NOT_FOUND`/`PRODUCT_NOT_FOUND` rather than presenting alternatives
+that don't exist in this contract; map free-text reasons onto fixed reason
+codes; and always restate the resolved area, quantity, and (for
+whole-area) the full product list in the confirmation step before calling
+`create_zeroization` or `create_area_zeroization`.
 
 ## Logging (real, not mocked)
 
@@ -254,9 +268,11 @@ later phase swaps storage without touching the API contract.
 
 ## Team split & 2-week timeline
 
-**Team A (Node):** Agent (Claude SDK), Planner, Memory, ToolExecutor (4
-tools), custom web UI, Node-side structured logging, Node tests, the
-scripted E2E harness.
+**Team A (Node):** Agent (Claude SDK), Planner, Memory, ToolExecutor (7
+tools: `authenticate_user`, `get_user_details`, `validate_area`,
+`validate_product`, `get_stock`, `create_zeroization`,
+`create_area_zeroization`), custom web UI, Node-side structured logging,
+Node tests, the scripted E2E harness.
 
 **Team B (Java):** Spring Boot scaffolding, AuthAPI/ValidationAPI/StockAPI,
 in-memory production-shaped repositories + seed data, Kafka simulation,
@@ -271,12 +287,13 @@ below assumes it's done by end of Day 1 (Day 2 morning at the latest).
   Agent/Planner/Memory loop built against stubbed tool responses matching
   the frozen contract, real ToolExecutor schemas (no quantity field), unit
   tests started.
-- Team B: Spring Boot app scaffolded, in-memory repositories + seed data
-  (including `AreaRepository`), all 4 endpoints implemented per contract —
-  including `PRODUCT_AMBIGUOUS` and `AREA_AMBIGUOUS` detection in
-  `ValidationAPI` from the start, since both are baseline, not stretch —
-  structured logging added, unit tests per endpoint — a runnable local
-  instance Team A can point at.
+- Team B: Spring Boot app scaffolded, in-memory repositories + seed data,
+  all 7 endpoints implemented per contract (`/api/login`, `/api/me`,
+  `/api/validation/area`, `/api/validation/product`, `/api/stock` —
+  including the area-wide form with `productId` omitted —
+  `/api/stock/zeroization`, `/api/stock/zeroization/area`), structured
+  logging added, unit tests per endpoint — a runnable local instance
+  Team A can point at.
 - **End of Week 1 — checkpoint #1:** live demo of the full auth →
   Zeroisation happy path, Team A's real Node backend talking to Team B's
   real running mock service (not stubs), structured logs visible in both
@@ -284,11 +301,14 @@ below assumes it's done by end of Day 1 (Day 2 morning at the latest).
 
 **Days 6–10 (Week 2):**
 - Days 6–7: fix integration gaps from checkpoint #1; add error/recovery
-  branches (invalid product, ambiguous product, ambiguous area,
-  already-zero, store-mismatch, correction loop) on both sides, with
-  matching logging.
-- Day 8: stretch window for typo/fuzzy-match suggestion — droppable per
-  the cut line above.
+  branches (`AREA_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `UNAUTHORIZED_MANAGER`,
+  no-stock, empty-area, `ZEROIZATION_FAILED`, correction loop) on both
+  sides, with matching logging; build out the whole-area path
+  (`create_area_zeroization` + its confirmation-list UX).
+- Day 8: buffer/hardening — no droppable stretch scope remains in this
+  contract, so this day goes to whatever's riskiest after checkpoint #1
+  (e.g. the reason-code mapping, or the login-failure shape gap flagged in
+  `api-contract.md`).
 - Day 9: joint E2E scripted suite finalized (happy path + 2+ error paths +
   logging assertions), regression pass, bug bash, feature freeze.
 - Day 10: final demo/sign-off (Phase 1 end-of-phase deliverable), doc

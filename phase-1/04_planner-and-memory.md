@@ -7,7 +7,7 @@ analogue — everything either does lives entirely inside the Node backend.
 ## Why they're separate from the Agent
 
 The Agent's only job is calling the Claude API (via the Claude SDK) with
-the current history and the 3 tool schemas. Planner and Memory are split
+the current history and the 7 tool schemas. Planner and Memory are split
 out from that call so each can be unit-tested against canned data, with
 no live API calls — exactly the split `testing-strategy.md` relies on for
 "Planner routing tests" and "Memory tests."
@@ -39,39 +39,43 @@ routing" in `testing-strategy.md` means concretely.
 
 **What it deliberately does not do:** parse free text into structured
 line items (that's a separate parsing step feeding into the
-`validate_stock_items` tool call), and it never inspects or modifies tool
-arguments — those come from Claude, not from the Planner.
+`validate_area`/`validate_product` tool calls), and it never inspects or
+modifies tool arguments — those come from Claude, not from the Planner.
 
 ## Where the "reasoning agent" pattern lives
 
 Recognizing what the user even wants — is this Zeroisation-shaped, or does
 it imply a partial quantity (Waste-shaped) or a destination store
 (Transfer-shaped), per `phase_1_plan.md`'s "Recognizing intent without a
-menu" — free-text entity extraction (`"eggs are damaged"` →
-`{product_name: "eggs", reason: "damaged"}`), matching a vague location
-phrase like "near some x area" against the real area descriptions
-`list_store_areas` returns, disambiguating a generic name against multiple
-catalog matches (`PRODUCT_AMBIGUOUS`) or one product stocked in multiple
-areas (`AREA_AMBIGUOUS`, see `api-contract.md`), and tracking what's still
-known vs. missing before a tool can be called — none of that is Planner
-logic. It's Claude's own reasoning, driven by the system prompt and the 4
-tool schemas, re-derived fresh on every turn from whatever is already in
-the conversation history.
+menu" — free-text entity extraction ("I want to remove eggs from
+Refrigerator X because it's damaged" → productName `"eggs"`, areaName
+`"Refrigerator X"`), telling a single-product request apart from a
+whole-area one ("the whole fridge lost power" → no `productName` at all,
+per `phase_1_plan.md`'s "Whole-area zeroization"), guessing a single area
+or product name to pass to `validate_area`/`validate_product` and
+producing a corrected guess on `AREA_NOT_FOUND`/`PRODUCT_NOT_FOUND`
+(there's no candidate list in `api-contract.md` to offer instead — see
+that doc's "Note on disambiguation"), mapping the user's own words for
+"why" onto a fixed `reason` code for `create_zeroization`/
+`create_area_zeroization`, and tracking what's still known vs. missing
+before a tool can be called — none of that is Planner logic. It's Claude's
+own reasoning, driven by the system prompt and the 7 tool schemas,
+re-derived fresh on every turn from whatever is already in the
+conversation history.
 
 This is exactly why Memory matters here: because the full history persists
 and is replayed on every Claude API call, Claude doesn't need a separate
 "known vs. missing" object handed to it — it reconstructs that from the
 transcript Memory already holds. Making the agent smarter changes the
-system prompt and the tool response shapes (e.g. adding `PRODUCT_AMBIGUOUS`'s
-`candidates` list for Claude to read), not the Planner's code. The Planner's
-job stays exactly what it was: mechanically route the response Claude
-already produced.
+system prompt (what to extract, how to map a reason, when to retry a
+guess), not the Planner's code. The Planner's job stays exactly what it
+was: mechanically route the response Claude already produced.
 
 ## Memory
 
 **What it does:** holds the conversation history for one session, and is
-the only place session auth context lives after `authenticate_user`
-succeeds.
+the only place session auth context lives after login and `/api/me`
+succeed.
 
 Two things live in Memory, appended in strict turn order:
 
@@ -80,13 +84,12 @@ Two things live in Memory, appended in strict turn order:
    back in. `testing-strategy.md`'s "Memory tests" assert this append
    order directly: user message → tool call → tool result, repeated
    across a multi-turn session, never reordered or dropped.
-2. **The session auth context** — `{user_id, name, role, store_id,
-   token}` — captured once from `authenticate_user`'s response and read
-   by every later tool call. `store_id` in particular is always read from
-   here, never re-derived from user text, which is what lets
-   `validate_stock_items` and `submit_zeroisation_request` enforce the
-   `STORE_MISMATCH` check honestly (per `api-contract.md`) instead of
-   trusting whatever the user typed.
+2. **The session auth context** — `token` from `authenticate_user`, then
+   `{employee_id, employee_number, name, email, assignedTo}` from
+   `get_user_details` — captured once and read by every later tool call.
+   `assignedTo` (the `storeId`) in particular is always read from here,
+   never re-derived from user text, and `employee_id` becomes
+   `requestedBy` on `create_zeroization`.
 
 **Why it's built here instead of provided for free:** most agent
 frameworks that use MCP get conversation state managed by the MCP host.
