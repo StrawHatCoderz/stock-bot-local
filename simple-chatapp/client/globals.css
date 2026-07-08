@@ -1,3 +1,110 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.md-content p {
+  margin-bottom: 0.5rem;
+  white-space: pre-wrap;
+}
+
+.md-content p:last-child {
+  margin-bottom: 0;
+}
+
+.md-content h1,
+.md-content h2,
+.md-content h3,
+.md-content h4 {
+  font-weight: 600;
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.md-content h1:first-child,
+.md-content h2:first-child,
+.md-content h3:first-child,
+.md-content h4:first-child {
+  margin-top: 0;
+}
+
+.md-content h1 {
+  font-size: 1.25rem;
+}
+
+.md-content h2 {
+  font-size: 1.125rem;
+}
+
+.md-content h3,
+.md-content h4 {
+  font-size: 1rem;
+}
+
+.md-content ul,
+.md-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.md-content ul {
+  list-style-type: disc;
+}
+
+.md-content ol {
+  list-style-type: decimal;
+}
+
+.md-content li {
+  margin-bottom: 0.25rem;
+}
+
+.md-content a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.md-content code {
+  background-color: rgba(0, 0, 0, 0.08);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.3rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  font-size: 0.875em;
+}
+
+.md-content pre {
+  background-color: rgba(0, 0, 0, 0.08);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.md-content pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.md-content table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  width: 100%;
+}
+
+.md-content th,
+.md-content td {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+}
+
+.md-content th {
+  background-color: rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+}
+
+.md-content blockquote {
+  border-left: 3px solid rgba(0, 0, 0, 0.15);
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: rgba(0, 0, 0, 0.65);
+}
