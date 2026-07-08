@@ -1,14 +1,25 @@
 # Simple Chat App
 
-A minimal chat application demonstrating the Claude Agent SDK.
+A Stock Zeroisation chat assistant built on the Claude Agent SDK. The agent's
+tools come from `../mcp/` (an MCP server over stdio), which proxies to the
+real Auth/Validation/Stock backend under `../services/` — see
+`phase-1/05_api-contract.md` for what those tools actually do.
 
 ## Architecture
 
 - **Frontend**: React + Vite + Tailwind CSS
 - **Backend**: Node.js + Express + WebSocket (ws)
-- **Agent**: Claude Agent SDK integrated directly on the server
+- **Agent**: Claude Agent SDK integrated directly on the server, with `../mcp/`
+  registered as a stdio MCP server (`server/ai-client.ts`)
+- **Login**: a direct server-side call to the real Auth service
+  (`POST /api/login` + `GET /api/me`), not something the agent negotiates —
+  see "Login flow" below
 
 ## Running the App
+
+Requires the mock backend (`../services/`, via `docker-compose up --build`
+or the three `bootRun` processes) and `../mcp/` built (`npm run build`)
+first — see `README.md`.
 
 ```bash
 cd simple-chatapp
@@ -20,28 +31,45 @@ This starts both:
 - Backend server on http://localhost:3001
 - Vite dev server on http://localhost:5173
 
-Visit http://localhost:5173
+Visit http://localhost:5173 — you'll land on a login form before the chat UI.
+
+## Login flow
+
+1. `LoginForm.tsx` posts `{username, password}` to `POST /api/auth/login`.
+2. `server.ts` calls the real Auth service directly: `POST /api/login` for a
+   token, then `GET /api/me` to confirm the employee is an authorized store
+   manager. This never touches the LLM — login is deterministic, not a
+   reasoning task.
+3. The resulting identity (`token`, `employee_id`, `employee_number`, `name`,
+   `email`, `storeId`) is returned to the client, which holds it in React
+   state and sends it along in the body of every `POST /api/chats` call.
+4. `chat-store.ts` stores the identity on the `Chat` record. `session.ts`
+   reads it back when constructing that chat's `AgentSession`.
+5. `ai-client.ts` bakes the identity into the system prompt (token/employee_id/
+   storeId as plain facts) — the agent is told it's already logged in and
+   never calls `authenticate_user`/`get_user_details` itself (those tools
+   exist on the MCP server but aren't in this agent's `allowedTools`).
 
 ## Project Structure
 
 ```
 simple-chatapp/
 ├── client/                    # React frontend
-│   ├── App.tsx               # Main app component
+│   ├── App.tsx               # Main app component, login gate
 │   ├── index.tsx             # Entry point
 │   ├── index.html            # HTML template
 │   ├── globals.css           # Tailwind CSS
-│   ├── components/
-│   │   ├── ChatList.tsx      # Left sidebar with chat list
-│   │   └── ChatWindow.tsx    # Main chat interface
-│   └── hooks/
-│       └── useWebSocket.ts   # WebSocket hook
+│   └── components/
+│       ├── LoginForm.tsx     # Username/password form, calls POST /api/auth/login
+│       ├── ChatList.tsx      # Left sidebar with chat list + logged-in identity/logout
+│       └── ChatWindow.tsx    # Main chat interface
 ├── server/
-│   ├── server.ts             # Express server (REST + WebSocket)
-│   ├── ai-client.ts          # Claude Agent SDK wrapper
-│   ├── session.ts            # Chat session management
-│   ├── chat-store.ts         # In-memory chat storage
-│   └── types.ts              # TypeScript types
+│   ├── server.ts             # Express server (REST + WebSocket), POST /api/auth/login
+│   ├── ai-client.ts          # Claude Agent SDK wrapper, MCP server registration, system prompt
+│   ├── session.ts            # Chat session management, reads identity for AgentSession
+│   ├── chat-store.ts         # In-memory chat storage (now carries identity per chat)
+│   └── types.ts              # TypeScript types, incl. LoginIdentity
+├── .env.example               # ANTHROPIC_API_KEY, STOCK_API_BASE_URL, PORT
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
@@ -53,8 +81,9 @@ simple-chatapp/
 
 ### REST API
 
+- `POST /api/auth/login` - Login (direct Auth-service call, see "Login flow")
 - `GET /api/chats` - List all chats
-- `POST /api/chats` - Create new chat
+- `POST /api/chats` - Create new chat (body: `{ title?, identity }`)
 - `GET /api/chats/:id` - Get chat details
 - `DELETE /api/chats/:id` - Delete chat
 - `GET /api/chats/:id/messages` - Get chat messages
@@ -75,7 +104,11 @@ simple-chatapp/
 
 ## Notes
 
-- In-memory storage (data lost on restart)
-- Agent has access to: Bash, Read, Write, Edit, Glob, Grep, WebSearch, WebFetch
+- In-memory storage (data lost on restart, including logged-in identity —
+  refreshing the page returns to the login form)
+- Agent's `allowedTools` is restricted to the 5 stock-operation MCP tools
+  (`validate_area`, `validate_product`, `get_stock`, `create_zeroization`,
+  `create_area_zeroization`) — no Bash/Read/Write/file/web access, unlike
+  the original demo scaffold this was built from
 - Uses Vite for frontend development with hot reload
 - Uses tsx for TypeScript execution on the backend

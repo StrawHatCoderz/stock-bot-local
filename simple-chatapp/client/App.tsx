@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import { ChatList } from "./components/ChatList";
 import { ChatWindow } from "./components/ChatWindow";
+import { LoginForm, type Identity } from "./components/LoginForm";
 
 interface Chat {
   id: string;
@@ -24,6 +25,7 @@ const API_BASE = "/api";
 const WS_URL = `ws://${window.location.hostname}:3001/ws`;
 
 export default function App() {
+  const [identity, setIdentity] = useState<Identity | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -113,12 +115,14 @@ export default function App() {
     }
   };
 
-  // Create new chat
+  // Create new chat — carries the logged-in identity along so the server
+  // can bake it into this chat's agent session (see server.ts, session.ts).
   const createChat = async () => {
     try {
       const res = await fetch(`${API_BASE}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identity }),
       });
       const chat = await res.json();
       setChats((prev) => [chat, ...prev]);
@@ -179,8 +183,21 @@ export default function App() {
 
   // Initial fetch
   useEffect(() => {
-    fetchChats();
-  }, []);
+    if (identity) {
+      fetchChats();
+    }
+  }, [identity]);
+
+  if (!identity) {
+    return <LoginForm onLogin={setIdentity} />;
+  }
+
+  const logout = () => {
+    setIdentity(null);
+    setChats([]);
+    setSelectedChatId(null);
+    setMessages([]);
+  };
 
   return (
     <div className="flex h-screen">
@@ -192,6 +209,8 @@ export default function App() {
           onSelectChat={selectChat}
           onNewChat={createChat}
           onDeleteChat={deleteChat}
+          identityName={identity.name}
+          onLogout={logout}
         />
       </div>
 

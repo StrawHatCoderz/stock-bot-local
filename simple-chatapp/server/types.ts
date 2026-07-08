@@ -6,12 +6,26 @@ export interface WSClient extends WebSocket {
   isAlive?: boolean;
 }
 
+// Identity established by POST /api/auth/login (a direct call to the real
+// Auth service, not something the agent negotiates) — see server.ts. Baked
+// into the agent's system prompt so it never needs to call
+// authenticate_user/get_user_details itself.
+export interface LoginIdentity {
+  token: string;
+  employeeId: string;
+  employeeNumber: string;
+  name: string;
+  email: string;
+  storeId: string;
+}
+
 // Chat stored in memory
 export interface Chat {
   id: string;
   title: string;
   createdAt: string;
   updatedAt: string;
+  identity?: LoginIdentity;
 }
 
 // Message stored in memory

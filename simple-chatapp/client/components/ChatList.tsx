@@ -13,6 +13,8 @@ interface ChatListProps {
   onSelectChat: (chatId: string) => void;
   onNewChat: () => void;
   onDeleteChat: (chatId: string) => void;
+  identityName?: string;
+  onLogout?: () => void;
 }
 
 export function ChatList({
@@ -21,6 +23,8 @@ export function ChatList({
   onSelectChat,
   onNewChat,
   onDeleteChat,
+  identityName,
+  onLogout,
 }: ChatListProps) {
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white">
@@ -73,9 +77,19 @@ export function ChatList({
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-700">
-        <p className="text-xs text-gray-500 text-center">
-          Simple Chat App
-        </p>
+        {identityName ? (
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-gray-400 truncate">Signed in as {identityName}</p>
+            <button
+              onClick={onLogout}
+              className="text-xs text-gray-400 hover:text-white shrink-0"
+            >
+              Log out
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 text-center">Simple Chat App</p>
+        )}
       </div>
     </div>
   );

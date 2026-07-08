@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
-import type { Chat, ChatMessage } from "./types.js";
+import type { Chat, ChatMessage, LoginIdentity } from "./types.js";
 
 // Simple in-memory store for chats
 class ChatStore {
   private chats: Map<string, Chat> = new Map();
   private messages: Map<string, ChatMessage[]> = new Map();
 
-  createChat(title?: string): Chat {
+  createChat(title?: string, identity?: LoginIdentity): Chat {
     const id = uuidv4();
     const now = new Date().toISOString();
     const chat: Chat = {
@@ -14,6 +14,7 @@ class ChatStore {
       title: title || "New Chat",
       createdAt: now,
       updatedAt: now,
+      identity,
     };
     this.chats.set(id, chat);
     this.messages.set(id, []);
