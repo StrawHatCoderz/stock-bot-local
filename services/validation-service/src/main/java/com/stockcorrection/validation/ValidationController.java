@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -56,6 +57,39 @@ public class ValidationController {
         body.put("exists", true);
         body.put("productId", product.productId());
         body.put("sku", product.sku());
+        return ResponseEntity.ok(body);
+    }
+
+    @GetMapping("/area/search")
+    public ResponseEntity<Map<String, Object>> searchAreas(
+            @RequestParam String storeId,
+            @RequestParam String q) {
+        List<MockValidationData.Area> areas = MockValidationData.searchAreas(storeId, q);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("candidates", areas.stream().map(area -> {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("areaId", area.areaId());
+            map.put("areaName", area.areaName());
+            map.put("storageType", area.storageType());
+            return map;
+        }).toList());
+        return ResponseEntity.ok(body);
+    }
+
+    @GetMapping("/product/search")
+    public ResponseEntity<Map<String, Object>> searchProducts(
+            @RequestParam String storeId,
+            @RequestParam String areaId,
+            @RequestParam String q) {
+        List<MockValidationData.Product> products = MockValidationData.searchProducts(areaId, q);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("candidates", products.stream().map(product -> {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("productId", product.productId());
+            map.put("productName", product.productName());
+            map.put("sku", product.sku());
+            return map;
+        }).toList());
         return ResponseEntity.ok(body);
     }
 }

@@ -8,10 +8,11 @@ COPY gradle ./gradle
 COPY auth-service ./auth-service
 COPY validation-service ./validation-service
 COPY stock-service ./stock-service
-ENV GRADLE_OPTS="-Dorg.gradle.jvmargs='-Xmx512m' -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1"
+ENV GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx512m -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1"
 RUN chmod +x gradlew && \
-    ./gradlew :auth-service:bootJar :validation-service:bootJar :stock-service:bootJar \
-      --no-daemon --max-workers=1 -x test
+    ./gradlew :auth-service:bootJar --no-daemon --max-workers=1 -x test && \
+    ./gradlew :validation-service:bootJar --no-daemon --max-workers=1 -x test && \
+    ./gradlew :stock-service:bootJar --no-daemon --max-workers=1 -x test
 
 FROM eclipse-temurin:21-jre AS auth-service
 WORKDIR /app

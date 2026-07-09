@@ -44,5 +44,17 @@ final class MockValidationData {
                 .orElse(null);
     }
 
+    static List<Area> searchAreas(String storeId, String query) {
+        return AREAS.stream()
+                .filter(a -> a.storeId().equals(storeId) && a.areaName().toLowerCase().contains(query.toLowerCase()))
+                .toList();
+    }
+
+    static List<Product> searchProducts(String areaId, String query) {
+        return PRODUCTS.stream()
+                .filter(p -> p.areaId().equals(areaId) && p.productName().toLowerCase().contains(query.toLowerCase()))
+                .toList();
+    }
+
     private MockValidationData() {}
 }

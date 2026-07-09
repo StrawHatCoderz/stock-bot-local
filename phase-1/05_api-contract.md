@@ -131,8 +131,37 @@ store-wide and not globally — `PRODUCT_NOT_FOUND` here specifically means
 "not in this area," per the message text. As with area validation, this
 contract has no candidate list for an ambiguous name (e.g. "milk" matching
 several sizes) — Claude names one product and retries on
-`PRODUCT_NOT_FOUND` if wrong.
+`PRODUCT_NOT_FOUND` if wrong. Note: Phase 1 initially lacked a candidate list, but `search` endpoints have since been added to resolve this.
 
+## 4a. Fuzzy Search Areas → `GET /api/validation/area/search`
+
+```
+Query params: storeId=STORE-101&q=fridge
+```
+
+```json
+// Response
+{
+  "candidates": [
+    { "areaId": "AREA-10", "areaName": "Refrigerator X", "storageType": "REFRIGERATOR" }
+  ]
+}
+```
+
+## 4b. Fuzzy Search Products → `GET /api/validation/product/search`
+
+```
+Query params: storeId=STORE-101&areaId=AREA-10&q=eggs
+```
+
+```json
+// Response
+{
+  "candidates": [
+    { "productId": "PROD-501", "sku": "SKU-100501", "productName": "Eggs" }
+  ]
+}
+```
 # Stock Service
 
 ## 5. Get Current Stock → `GET /api/stock`

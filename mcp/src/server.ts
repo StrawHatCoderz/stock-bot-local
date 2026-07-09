@@ -10,55 +10,6 @@ export function createServer(): McpServer {
   });
 
   server.registerTool(
-    "authenticate_user",
-    {
-      title: "Authenticate User",
-      description:
-        "Authenticate a store employee against the Auth service using their username and " +
-        "password, returning a session token. Call this first, before any other tool — " +
-        "every subsequent tool call in this conversation needs the `token` this returns.",
-      inputSchema: {
-        username: z.string().describe("The employee's login username."),
-        password: z.string().describe("The employee's login password."),
-      },
-    },
-    async ({ username, password }) => {
-      try {
-        const result = await callApi("POST", "/api/login", {
-          body: { username, password },
-        });
-        return apiResultToToolResult(result);
-      } catch (err) {
-        return errorToToolResult(err);
-      }
-    }
-  );
-
-  server.registerTool(
-    "get_user_details",
-    {
-      title: "Get User Details",
-      description:
-        "Look up the authenticated employee's identity and authorization using the token " +
-        "from authenticate_user. Confirms the employee is an authorized store manager and " +
-        "returns their assigned store (`assignedTo`, use this as `storeId` on every later " +
-        "call) and `employee_id` (use this as `requestedBy` when creating a zeroization). " +
-        "Call this immediately after authenticate_user, before attempting any stock operation.",
-      inputSchema: {
-        token: z.string().describe("The session token from authenticate_user."),
-      },
-    },
-    async ({ token }) => {
-      try {
-        const result = await callApi("GET", "/api/me", { token });
-        return apiResultToToolResult(result);
-      } catch (err) {
-        return errorToToolResult(err);
-      }
-    }
-  );
-
-  server.registerTool(
     "validate_area",
     {
       title: "Validate Area",
@@ -70,17 +21,15 @@ export function createServer(): McpServer {
         "than asking the user to enumerate options. Must be called before validate_product " +
         "or get_stock, since those are scoped to an already-validated areaId.",
       inputSchema: {
-        token: z.string().describe("The session token."),
-        storeId: z
-          .string()
-          .describe("The store to search within (from get_user_details's assignedTo)."),
         areaName: z
           .string()
           .describe("Free-text area/location name to resolve, e.g. 'Dairy' or 'Refrigerator X'."),
       },
     },
-    async ({ token, storeId, areaName }) => {
+    async ({ areaName }) => {
       try {
+        const token = process.env.SESSION_TOKEN;
+        const storeId = process.env.SESSION_STORE_ID;
         const result = await callApi("POST", "/api/validation/area", {
           token,
           body: { storeId, areaName },
@@ -104,14 +53,14 @@ export function createServer(): McpServer {
         "with a corrected best-guess name. Skip this call entirely when the user means to " +
         "zero out an entire area rather than a single product.",
       inputSchema: {
-        token: z.string().describe("The session token."),
-        storeId: z.string().describe("The store the area belongs to."),
         areaId: z.string().describe("The areaId returned by validate_area."),
         productName: z.string().describe("Free-text product name to resolve, e.g. 'eggs'."),
       },
     },
-    async ({ token, storeId, areaId, productName }) => {
+    async ({ areaId, productName }) => {
       try {
+        const token = process.env.SESSION_TOKEN;
+        const storeId = process.env.SESSION_STORE_ID;
         const result = await callApi("POST", "/api/validation/product", {
           token,
           body: { storeId, areaId, productName },
@@ -136,8 +85,6 @@ export function createServer(): McpServer {
         "create_area_zeroization for a whole-area zero-out. A quantity of 0, or an empty " +
         "product list, is a normal result, not an error — it means there is nothing to zero.",
       inputSchema: {
-        token: z.string().describe("The session token."),
-        storeId: z.string().describe("The store the area belongs to."),
         areaId: z.string().describe("The validated areaId to look up stock for."),
         productId: z
           .string()
@@ -148,8 +95,10 @@ export function createServer(): McpServer {
           ),
       },
     },
-    async ({ token, storeId, areaId, productId }) => {
+    async ({ areaId, productId }) => {
       try {
+        const token = process.env.SESSION_TOKEN;
+        const storeId = process.env.SESSION_STORE_ID;
         const result = await callApi("GET", "/api/stock", {
           token,
           query: { storeId, areaId, productId },
@@ -170,12 +119,10 @@ export function createServer(): McpServer {
         "exactly the `availableQuantity` just read from get_stock. `reason` is a fixed " +
         "code (e.g. SPOILED) that you map from whatever the user actually said caused the " +
         "loss; `remarks` should carry the user's original free-text explanation so nothing " +
-        "is lost in that mapping. `requestedBy` is the `employee_id` from get_user_details. " +
+        "is lost in that mapping. " +
         "Always confirm the product and quantity with the user before calling this — it is " +
         "a destructive, auditable action.",
       inputSchema: {
-        token: z.string().describe("The session token."),
-        storeId: z.string(),
         areaId: z.string(),
         productId: z.string(),
         quantity: z
@@ -187,11 +134,13 @@ export function createServer(): McpServer {
           .string()
           .describe("A fixed reason code mapped from the user's stated cause, e.g. SPOILED."),
         remarks: z.string().describe("The user's original free-text explanation of what happened."),
-        requestedBy: z.string().describe("The employee_id from get_user_details."),
       },
     },
-    async ({ token, storeId, areaId, productId, quantity, reason, remarks, requestedBy }) => {
+    async ({ areaId, productId, quantity, reason, remarks }) => {
       try {
+        const token = process.env.SESSION_TOKEN;
+        const storeId = process.env.SESSION_STORE_ID;
+        const requestedBy = process.env.SESSION_EMPLOYEE_ID;
         const result = await callApi("POST", "/api/stock/zeroization", {
           token,
           body: { storeId, areaId, productId, quantity, reason, remarks, requestedBy },
@@ -218,21 +167,74 @@ export function createServer(): McpServer {
         "create_zeroization once per product rather than this tool. Always confirm the " +
         "full list of affected products with the user before calling this.",
       inputSchema: {
-        token: z.string().describe("The session token."),
-        storeId: z.string(),
         areaId: z.string(),
         reason: z
           .string()
           .describe("A single fixed reason code covering every product in the area, e.g. POWER_FAILURE."),
         remarks: z.string().describe("The user's original free-text explanation of the shared cause."),
-        requestedBy: z.string().describe("The employee_id from get_user_details."),
       },
     },
-    async ({ token, storeId, areaId, reason, remarks, requestedBy }) => {
+    async ({ areaId, reason, remarks }) => {
       try {
+        const token = process.env.SESSION_TOKEN;
+        const storeId = process.env.SESSION_STORE_ID;
+        const requestedBy = process.env.SESSION_EMPLOYEE_ID;
         const result = await callApi("POST", "/api/stock/zeroization/area", {
           token,
           body: { storeId, areaId, reason, remarks, requestedBy },
+        });
+        return apiResultToToolResult(result);
+      } catch (err) {
+        return errorToToolResult(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "search_areas_fuzzy",
+    {
+      title: "Search Areas Fuzzy",
+      description:
+        "Fuzzy search for areas by name within the current store. Always use this to get a list of " +
+        "candidate areas before using validate_area. If multiple candidates match, ask the user to clarify.",
+      inputSchema: {
+        query: z.string().describe("The partial name of the area to search for, e.g. 'fridge'"),
+      },
+    },
+    async ({ query }) => {
+      try {
+        const token = process.env.SESSION_TOKEN;
+        const storeId = process.env.SESSION_STORE_ID;
+        const result = await callApi("GET", "/api/validation/area/search", {
+          token,
+          query: { storeId, q: query },
+        });
+        return apiResultToToolResult(result);
+      } catch (err) {
+        return errorToToolResult(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "search_products_fuzzy",
+    {
+      title: "Search Products Fuzzy",
+      description:
+        "Fuzzy search for products by name within a specific validated area. Always use this to get a list of " +
+        "candidate products before using validate_product. If multiple candidates match, ask the user to clarify.",
+      inputSchema: {
+        areaId: z.string().describe("The exact areaId the product should be in."),
+        query: z.string().describe("The partial name of the product to search for, e.g. 'coke'"),
+      },
+    },
+    async ({ areaId, query }) => {
+      try {
+        const token = process.env.SESSION_TOKEN;
+        const storeId = process.env.SESSION_STORE_ID;
+        const result = await callApi("GET", "/api/validation/product/search", {
+          token,
+          query: { storeId, areaId, q: query },
         });
         return apiResultToToolResult(result);
       } catch (err) {
