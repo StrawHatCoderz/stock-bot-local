@@ -73,7 +73,7 @@ Express server (:3001)
 
 **Session identity reaches the MCP subprocess via env vars.** `ai-client.ts` spawns `mcp/build/index.js` with `SESSION_TOKEN`, `SESSION_STORE_ID`, and `SESSION_EMPLOYEE_ID` set. Every MCP tool reads these from `process.env` — the agent passes no auth params itself, and the MCP server is stateless across tool calls within a session.
 
-**Agent model:** `claude-sonnet-5` (set in `simple-chatapp/server/ai-client.ts`).
+**Agent model:** `claude-sonnet-5` (set in `simple-chatapp/server/src/ai-client.ts`).
 
 **Allowed tools** (from `ai-client.ts` `ALLOWED_MCP_TOOLS`): `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product`, `get_stock`, `create_zeroization`, `create_area_zeroization`. Auth tools are excluded — login already happened.
 

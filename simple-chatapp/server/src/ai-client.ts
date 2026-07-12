@@ -6,10 +6,10 @@ import type { LoginIdentity } from "./types.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// The MCP server lives in a sibling top-level directory (../../mcp relative
-// to this file), built separately (`npm run build` in mcp/) — see
-// ../../mcp/README.md.
-const MCP_SERVER_PATH = path.resolve(__dirname, "../../mcp/build/index.js");
+// The MCP server lives in a sibling top-level directory (../../../mcp
+// relative to this file), built separately (`npm run build` in mcp/) — see
+// ../../../mcp/README.md.
+const MCP_SERVER_PATH = path.resolve(__dirname, "../../../mcp/build/index.js");
 const MCP_SERVER_NAME = "stock-bot";
 
 // Base URL for the real Auth/Validation/Stock backend the MCP server
@@ -18,10 +18,9 @@ const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://localhost:8
 
 // Only the 5 stock-operation tools are exposed to the agent.
 // authenticate_user/get_user_details exist on the MCP server too, but login
-// already happened server-side (see server.ts's POST /api/auth/login)
-// before this session is ever created — the agent has no reason to call
-// them, and letting it try would just confuse the "already logged in" story
-// below.
+// already happened server-side before this session is ever created — the
+// agent has no reason to call them, and letting it try would just confuse
+// the "already logged in" story below.
 const ALLOWED_MCP_TOOLS = [
   "search_areas_fuzzy",
   "search_products_fuzzy",

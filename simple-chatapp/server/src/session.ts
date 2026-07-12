@@ -12,7 +12,7 @@ export class Session {
   constructor(chatId: string) {
     this.chatId = chatId;
     // Identity comes from the chat record, set once at POST /api/chats time
-    // from the login response (see server.ts) — not re-derived here.
+    // from the login response — not re-derived here.
     const identity = chatStore.getChat(chatId)?.identity;
     this.agentSession = new AgentSession(identity);
   }

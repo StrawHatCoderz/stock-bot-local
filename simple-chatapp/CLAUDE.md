@@ -10,7 +10,7 @@ real Auth/Validation/Stock backend under `../services/` — see
 - **Frontend**: React + Vite + Tailwind CSS
 - **Backend**: Node.js + Express + WebSocket (ws)
 - **Agent**: Claude Agent SDK integrated directly on the server, with `../mcp/`
-  registered as a stdio MCP server (`server/ai-client.ts`)
+  registered as a stdio MCP server (`server/src/ai-client.ts`)
 - **Login**: a direct server-side call to the real Auth service
   (`POST /api/login` + `GET /api/me`), not something the agent negotiates —
   see "Login flow" below
@@ -36,7 +36,7 @@ Visit http://localhost:5173 — you'll land on a login form before the chat UI.
 ## Login flow
 
 1. `LoginForm.tsx` posts `{username, password}` to `POST /api/auth/login`.
-2. `server.ts` calls the real Auth service directly: `POST /api/login` for a
+2. `server/src/app.ts` calls the real Auth service directly: `POST /api/login` for a
    token, then `GET /api/me` to confirm the employee is an authorized store
    manager. This never touches the LLM — login is deterministic, not a
    reasoning task.
@@ -64,11 +64,15 @@ simple-chatapp/
 │       ├── ChatList.tsx      # Left sidebar with chat list + logged-in identity/logout
 │       └── ChatWindow.tsx    # Main chat interface
 ├── server/
-│   ├── server.ts             # Express server (REST + WebSocket), POST /api/auth/login
-│   ├── ai-client.ts          # Claude Agent SDK wrapper, MCP server registration, system prompt
-│   ├── session.ts            # Chat session management, reads identity for AgentSession
-│   ├── chat-store.ts         # In-memory chat storage (now carries identity per chat)
-│   └── types.ts              # TypeScript types, incl. LoginIdentity
+│   ├── main.ts                # Entrypoint: creates app + WS server, starts listening
+│   └── src/
+│       ├── app.ts             # Express app factory (REST routes), POST /api/auth/login
+│       ├── ws-server.ts       # WebSocket server factory (connection handling, heartbeat)
+│       ├── session-registry.ts # Shared chatId -> Session map
+│       ├── ai-client.ts       # Claude Agent SDK wrapper, MCP server registration, system prompt
+│       ├── session.ts         # Chat session management, reads identity for AgentSession
+│       ├── chat-store.ts      # In-memory chat storage (now carries identity per chat)
+│       └── types.ts           # TypeScript types, incl. LoginIdentity
 ├── .env.example               # ANTHROPIC_API_KEY, STOCK_API_BASE_URL, PORT
 ├── package.json
 ├── tsconfig.json
