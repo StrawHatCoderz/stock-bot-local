@@ -76,6 +76,7 @@ public class AuthController {
         body.put("name", employee.name());
         body.put("email", employee.email());
         body.put("assignedTo", employee.assignedTo());
+        body.put("role", employee.role());
         return ResponseEntity.ok(body);
     }
 

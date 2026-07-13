@@ -22,10 +22,12 @@ public class StockController {
 
     record ZeroizationRequest(
             String storeId, String areaId, String productId,
-            long quantity, String reason, String remarks, String requestedBy) {}
+            long quantity, String reason, String remarks, String requestedBy,
+            String requestedByRole) {}
 
     record AreaZeroizationRequest(
-            String storeId, String areaId, String reason, String remarks, String requestedBy) {}
+            String storeId, String areaId, String reason, String remarks, String requestedBy,
+            String requestedByRole) {}
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> getStock(
@@ -77,6 +79,10 @@ public class StockController {
 
     @PostMapping("/zeroization")
     public ResponseEntity<Map<String, Object>> createZeroization(@RequestBody ZeroizationRequest request) {
+        if (!"STORE_MANAGER".equals(request.requestedByRole())) {
+            return ResponseEntity.ok(forbiddenRoleBody());
+        }
+
         MockStockData.StockItem item = MockStockData.find(request.storeId(), request.areaId(), request.productId());
 
         if (item == null) {
@@ -95,6 +101,10 @@ public class StockController {
 
     @PostMapping("/zeroization/area")
     public ResponseEntity<Map<String, Object>> createAreaZeroization(@RequestBody AreaZeroizationRequest request) {
+        if (!"STORE_MANAGER".equals(request.requestedByRole())) {
+            return ResponseEntity.ok(forbiddenRoleBody());
+        }
+
         List<MockStockData.StockItem> items = MockStockData.findByArea(request.storeId(), request.areaId());
 
         if (items.isEmpty()) {
@@ -124,6 +134,14 @@ public class StockController {
         body.put("status", "FAILED");
         body.put("errorCode", "ZEROIZATION_FAILED");
         body.put("message", "Unable to create zeroization.");
+        return body;
+    }
+
+    private Map<String, Object> forbiddenRoleBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", "FAILED");
+        body.put("errorCode", "FORBIDDEN_ROLE");
+        body.put("message", "Only store managers can perform zeroisation.");
         return body;
     }
 }

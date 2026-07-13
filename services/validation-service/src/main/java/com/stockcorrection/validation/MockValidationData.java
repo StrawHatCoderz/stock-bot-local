@@ -18,7 +18,7 @@ final class MockValidationData {
 
     static final List<Area> AREAS = List.of(
             new Area("AREA-10", "STORE-101", "Refrigerator X", "REFRIGERATOR"),
-            new Area("AREA-11", "STORE-101", "Backroom Storage", "STORAGE"),
+                new Area("AREA-11", "STORE-101", "Backroom Storage", "STORAGE"),
             new Area("AREA-20", "STORE-102", "Freezer Section", "FREEZER")
     );
 

@@ -95,8 +95,9 @@ const startServer = async () => {
       token: req.headers["x-session-token"] as string | undefined,
       storeId: req.headers["x-session-store-id"] as string | undefined,
       employeeId: req.headers["x-session-employee-id"] as string | undefined,
+      role: req.headers["x-session-employee-role"] as string | undefined,
     };
-    
+
     sessionContext.run(context, () => {
       transport.handlePostMessage(req, res, req.body).catch((e) => {
         console.error("Stock MCP Message Error:", e);

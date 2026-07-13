@@ -20,3 +20,9 @@ out/
 
 # Editor
 .idea/
+
+# Tooling / scratch
+notes/
+.specify
+.claude
+scratch/
