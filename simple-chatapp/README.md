@@ -41,10 +41,10 @@ Open http://localhost:5173 in your browser.
 
 The chat is gated behind a login form — there's no way to reach the chat UI
 without signing in first. Login is a direct server-side call to the real
-Auth service (`POST /api/login` then `GET /api/me`, see `server/server.ts`'s
+Auth service (`POST /api/login` then `GET /api/me`, see `server/src/app.ts`'s
 `POST /api/auth/login`), not something the agent negotiates; the resulting
 identity (token, `employee_id`, `storeId`) is baked into that chat's system
-prompt (`server/ai-client.ts`) so the agent never calls
+prompt (`server/src/ai-client.ts`) so the agent never calls
 `authenticate_user`/`get_user_details` itself.
 
 Use the mock credentials seeded in `services/auth-service` (see

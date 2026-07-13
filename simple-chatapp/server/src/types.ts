@@ -7,9 +7,9 @@ export interface WSClient extends WebSocket {
 }
 
 // Identity established by POST /api/auth/login (a direct call to the real
-// Auth service, not something the agent negotiates) — see server.ts. Baked
-// into the agent's system prompt so it never needs to call
-// authenticate_user/get_user_details itself.
+// Auth service, not something the agent negotiates). Baked into the agent's
+// system prompt so it never needs to call authenticate_user/get_user_details
+// itself.
 export interface LoginIdentity {
   token: string;
   employeeId: string;
