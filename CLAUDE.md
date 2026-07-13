@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a **Stock Correction Chatbot Agent** — a conversational interface for store managers to perform stock zeroisation (writing off damaged/expired/spoiled stock). Phase 1 scope is Zeroisation only; Waste Adjustment and Store-to-Store Transfer are scoped to phase 2 and 3.
+This is a **Stock Correction Chatbot Agent** — a conversational interface for store managers to perform stock zeroisation (writing off damaged/expired/spoiled stock). Phase 1 scope is Zeroisation only; Waste Adjustment and Store-to-Store Transfer are out of scope (mentioned in the system prompt as intents to politely decline, but no backend/tool support exists for either).
 
 Three components must run together:
 
 | Component | Dir | Description |
 |---|---|---|
-| Java mock backend | `services/` | Spring Boot (auth + validation + stock), behind nginx |
-| MCP server | `mcp/` | Node.js stdio MCP server proxying the 7 Phase 1 tools to the backend |
+| Java mock backend | `services/` | 3 independent Spring Boot apps (auth, validation, stock), each with hardcoded in-memory data — no database, no repository layer |
+| MCP server | `mcp/` | Node.js/Express server exposing two MCP servers over **SSE** (`/validation`, `/stock`), proxying to the Java backend |
 | Chat app | `simple-chatapp/` | React + Express + WebSocket UI with Claude Agent SDK |
 
 ## Commands
@@ -20,88 +20,102 @@ Three components must run together:
 
 ```bash
 cd services
-docker-compose up --build   # recommended: starts auth:8081, validation:8082, stock:8083 behind nginx:8080
+docker-compose up --build   # starts auth/validation/stock + nginx gateway
 ```
 
-Or run each service individually with Gradle:
+The gateway is the only container that publishes a host port: **`http://localhost:8085`** (see `services/docker-compose.yml` — `api-gateway` maps `8085:80`). The three backend containers aren't reachable directly in this mode. `mcp/.env.example` and `simple-chatapp/.env` default their base URLs to `:8080`, which is **stale/wrong** for this compose file — override `API_BASE_URL` / `STOCK_API_BASE_URL` to `http://localhost:8085` when running via docker-compose, or run services directly (below) and skip the gateway.
+
+Or run each service individually with Gradle, hitting each port directly (no gateway):
 ```bash
-./gradlew :auth-service:bootRun
-./gradlew :validation-service:bootRun
-./gradlew :stock-service:bootRun
+cd services
+./gradlew :auth-service:bootRun        # :8081
+./gradlew :validation-service:bootRun  # :8082
+./gradlew :stock-service:bootRun       # :8083
 ```
+Test a single service: `./gradlew :auth-service:test` (note: no test sources currently exist under any service — the task runs but has nothing to execute).
+
+There's no shared database between services — `validation-service` and `stock-service` each hardcode their own copy of the same store/area/product IDs (`MockValidationData`/`MockStockData`). Keep those in sync by hand if you add mock data.
 
 ### MCP server (build before starting the chat app)
 
 ```bash
 cd mcp
 npm install
-npm run build        # compiles TypeScript → build/index.js
-# npm run dev        # tsx direct (no build step, for development)
+npm run build        # tsc → build/index.js
+npm run dev          # tsx src/index.ts directly (no build step)
+npm start            # node build/index.js
 ```
+No test or lint script is defined.
 
 ### Chat app
 
 ```bash
 cd simple-chatapp
-cp .env.example .env   # set ANTHROPIC_API_KEY
 npm install
-npm run dev            # starts Express on :3001 + Vite on :5173
+npm run dev            # concurrently: tsx watch server/main.ts (:3001) + vite (:5173)
 ```
+No test or lint script is defined; there is no test suite anywhere in this repo.
 
-Visit http://localhost:5173. Log in with a seeded store manager account before the chat UI appears.
+Visit http://localhost:5173. Log in with a seeded store manager account (see "Test accounts" below) before the chat UI appears.
 
 ## Architecture
 
 ```
 Browser (React/Vite :5173)
     ↕ REST + WebSocket
-Express server (:3001)
+Express server (:3001, server/main.ts → src/app.ts + src/ws-server.ts)
     ├── POST /api/auth/login → calls Java auth-service directly (not via agent)
-    └── WebSocket → AgentSession (Claude Agent SDK)
-                        ↕ stdio MCP
-                    MCP server (mcp/build/index.js)
-                        ↕ HTTP
-                    nginx gateway (:8080)
-                        ├── auth-service (:8081)
-                        ├── validation-service (:8082)
-                        └── stock-service (:8083)
+    └── WebSocket → AgentSession (Claude Agent SDK, src/ai-client.ts)
+                        ↕ SSE (2 MCP clients, headers carry identity per-request)
+                    mcp/src/index.ts (Express, PORT default 3000)
+                        ├── GET/POST /validation → validation-mcp
+                        └── GET/POST /stock      → stock-mcp
+                                ↕ HTTP
+                            nginx gateway (:8085 in docker-compose; :8081-8083 direct)
+                                ├── auth-service
+                                ├── validation-service
+                                └── stock-service
 ```
 
 ### Key design decisions
 
-**Login is server-side, not agent-driven.** `server.ts` calls `POST /api/login` + `GET /api/me` directly and stores the resulting `LoginIdentity` (`token`, `employeeId`, `storeId`, `name`, etc.) on the `Chat` record. The agent never sees credentials and never calls `authenticate_user`/`get_user_details`.
+**Login is server-side, not agent-driven.** `server/src/app.ts` calls `POST /api/login` + `GET /api/me` directly and returns the resulting `LoginIdentity` (`token`, `employeeId`, `storeId`, `role`, `name`, etc.) to the client, which sends it with every `POST /api/chats` call. `chat-store.ts` persists it on the `Chat` record; `session.ts` reads it back to construct that chat's `AgentSession`. The agent never sees credentials and never calls `authenticate_user`/`get_user_details` (those tools exist on the MCP server but are excluded from `allowedTools`).
 
-**Session identity reaches the MCP subprocess via env vars.** `ai-client.ts` spawns `mcp/build/index.js` with `SESSION_TOKEN`, `SESSION_STORE_ID`, and `SESSION_EMPLOYEE_ID` set. Every MCP tool reads these from `process.env` — the agent passes no auth params itself, and the MCP server is stateless across tool calls within a session.
+**Session identity reaches the MCP server via SSE headers, not env vars or spawn args.** `ai-client.ts` passes `x-session-token` / `x-session-store-id` / `x-session-employee-id` (both servers) and `x-session-employee-role` (stock-mcp only) as headers on the SSE `mcpServers` config. `mcp/src/index.ts` reads these per-request in the `POST /validation/messages` and `POST /stock/messages` handlers and runs the tool call inside `sessionContext.run(...)` (`AsyncLocalStorage`, `mcp/src/context.ts`) — the MCP server itself is stateless across calls; identity is per-request, not per-process.
+
+**RBAC: only the two zeroisation-write tools are role-gated.** `create_zeroization` and `create_area_zeroization` (in `mcp-server-stock.ts`) call `getSessionRole()` and immediately return a `FORBIDDEN_ROLE` business-failure JSON if `role !== "STORE_MANAGER"`, before ever calling the backend. Read-only tools (`get_stock`, everything on validation-mcp) are not gated.
 
 **Agent model:** `claude-sonnet-5` (set in `simple-chatapp/server/src/ai-client.ts`).
 
-**Allowed tools** (from `ai-client.ts` `ALLOWED_MCP_TOOLS`): `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product`, `get_stock`, `create_zeroization`, `create_area_zeroization`. Auth tools are excluded — login already happened.
+**Allowed tools** (`ALLOWED_MCP_TOOLS` in `ai-client.ts`, 7 total): `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product` (validation-mcp) and `get_stock`, `create_zeroization`, `create_area_zeroization` (stock-mcp).
 
-**Fuzzy search before exact validation.** The current tool set includes `search_areas_fuzzy` and `search_products_fuzzy` (beyond the 7 in the original plan). The system prompt instructs the agent to call fuzzy search first to get candidates, then disambiguate before calling `validate_area`/`validate_product`.
+**Fuzzy search before exact validation.** The system prompt instructs the agent to call `search_areas_fuzzy`/`search_products_fuzzy` first to get candidates, disambiguate with the user if there are multiple, then call `validate_area`/`validate_product`.
 
-**Business failures are HTTP 200 bodies.** The backend returns `{ exists: false, errorCode: "AREA_NOT_FOUND" }` — not 4xx. `mcp/src/toolResult.ts` passes the body through as-is so the agent reads the `exists`/`authorized`/`status`/`errorCode` fields itself. Only network failures surface as MCP tool errors.
+**Business failures are HTTP 200 bodies.** The backend returns `{ exists: false, errorCode: "AREA_NOT_FOUND" }` — not 4xx. `mcp/src/toolResult.ts` passes the body through as-is so the agent reads `exists`/`authorized`/`status`/`errorCode` fields itself. Only network failures surface as MCP tool errors.
 
-**Quantity always comes from `get_stock`.** The agent is never allowed to accept a quantity from the user. The `create_zeroization` schema and system prompt both enforce this.
+**Quantity always comes from `get_stock`.** The agent is never allowed to accept a quantity from the user — enforced by the system prompt and by `create_zeroization`'s schema.
 
 ## Java backend structure
 
-`services/` is a Gradle multi-project build (`auth-service`, `validation-service`, `stock-service`). Each is a standalone Spring Boot app using the repository-interface pattern — `InMemory*` implementations now, JPA-backed in Phase 5. Entity IDs are business-code strings (`STORE-101`, `AREA-10`, `PROD-501`, `EMP-1001`).
+`services/` is a Gradle multi-project build (`auth-service`, `validation-service`, `stock-service`), Java 21. Each service is plain controllers over a hardcoded static `Mock*Data` list — there is no repository/service layering and no database in Phase 1. Entity IDs are business-code strings (`STORE-101`, `AREA-10`, `PROD-501`, `EMP-1001`).
+
+### Test accounts (`MockAuthData.java`, all password `password123`)
+
+| username | role | assigned store | exercises |
+|---|---|---|---|
+| `priya.k` | STORE_MANAGER | STORE-101 | happy path |
+| `raj.kumar` | STORE_MANAGER | STORE-102 | happy path, different store's data |
+| `sam.t` | STORE_ASSOCIATE | *(none)* | `UNAUTHORIZED_MANAGER` at login (`GET /api/me`) |
+| `alex.w` | STORE_ASSOCIATE | STORE-101 | passes login, but hits `FORBIDDEN_ROLE` on zeroisation tools |
 
 ## Environment variables
 
-**`simple-chatapp/.env`** (from `.env.example`):
-- `ANTHROPIC_API_KEY` — required
-- `STOCK_API_BASE_URL` — defaults to `http://localhost:8080` (the nginx gateway)
-- `PORT` — optional, defaults to 3001
+**`simple-chatapp/.env`**: `ANTHROPIC_API_KEY` (required), `STOCK_API_BASE_URL` (default `http://localhost:8080` — see port note above), `PORT` (default 3001), `MCP_HOST` (default `localhost:3000`).
 
-**`mcp/`** — `API_BASE_URL` is injected at spawn time by `ai-client.ts`; do not set it in a `.env` for the MCP server.
+**`mcp/.env`**: `API_BASE_URL` (default `http://localhost:8080` in `.env.example` — same port note applies), `PORT` (default 3000). In `docker-compose.yml` at repo root, `API_BASE_URL` and `MCP_HOST` are set to the container network names (`api-gateway:80`, `mcp:3000`) rather than these host defaults.
 
 ## Planning docs
 
-`phase-1/` contains the frozen spec for this sprint:
-- `01_phase_1_plan.md` — end-to-end flow, whole-area zeroisation, intent recognition rules
-- `03_tech_stack.md` — Node/Java stack rationale, repository-interface pattern
-- `05_api-contract.md` — frozen REST shapes for all 7 endpoints
-- `04_planner-and-memory.md` — Planner/Memory/ToolExecutor design
+`docs/phase-1/` has the Phase 1 spec docs — `design_spec.md` (end-to-end flow, intent-recognition rules, fuzzy-before-validate) is accurate and matches the current implementation. `technical_spec.md` predates the SSE migration and still describes the MCP server as stdio-based — don't trust its transport description. `implementation_spec.md` describes `node-ci.yml`/`java-ci.yml`/`e2e.yml` CI workflows that were never built — there's no `.github/` directory anywhere in the repo — so don't trust its CI/process claims either. `specs/001-mcp-http-migration/` is the (completed) spec for that stdio→SSE migration; useful as history, but its file-naming placeholders (`server.js`, `mcp-server-1.js`/`2.js`) don't match the real files (`index.ts`, `mcp-server-validation.ts`, `mcp-server-stock.ts`).
 
-`simple-chatapp/CLAUDE.md` has detailed notes on the chat app's internals (login flow, WebSocket protocol, component structure).
+`simple-chatapp/CLAUDE.md` has chat-app-internal notes (identity flow, system prompt structure, per-file breakdown of `server/src/`) and is accurate and up to date — safe to rely on for chat-app implementation detail beyond what's summarized here.
