@@ -9,8 +9,8 @@ const __dirname = path.dirname(__filename);
 // The MCP server lives in a sibling top-level directory (../../mcp relative
 // to this file), built separately (`npm run build` in mcp/) — see
 // ../../mcp/README.md.
-const MCP_SERVER_PATH = path.resolve(__dirname, "../../mcp/build/index.js");
-const MCP_SERVER_NAME = "stock-bot";
+// We use SSE for the HTTP server
+const MCP_HOST = process.env.MCP_HOST || "localhost:3000";
 
 // Base URL for the real Auth/Validation/Stock backend the MCP server
 // proxies to (e.g. the nginx gateway from services/docker-compose.yml).
@@ -23,14 +23,14 @@ const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://localhost:8
 // them, and letting it try would just confuse the "already logged in" story
 // below.
 const ALLOWED_MCP_TOOLS = [
-  "search_areas_fuzzy",
-  "search_products_fuzzy",
-  "validate_area",
-  "validate_product",
-  "get_stock",
-  "create_zeroization",
-  "create_area_zeroization",
-].map((tool) => `mcp__${MCP_SERVER_NAME}__${tool}`);
+  "mcp__validation-mcp__search_areas_fuzzy",
+  "mcp__validation-mcp__search_products_fuzzy",
+  "mcp__validation-mcp__validate_area",
+  "mcp__validation-mcp__validate_product",
+  "mcp__stock-mcp__get_stock",
+  "mcp__stock-mcp__create_zeroization",
+  "mcp__stock-mcp__create_area_zeroization",
+];
 
 /**
  * Grounded in phase-1/01_phase_1_plan.md and phase-1/04_planner-and-memory.md
@@ -154,23 +154,27 @@ export class AgentSession {
         model: "claude-sonnet-5",
         allowedTools: ALLOWED_MCP_TOOLS,
         systemPrompt: buildSystemPrompt(identity),
+        settingSources: [],
         mcpServers: {
-          [MCP_SERVER_NAME]: {
-            type: "stdio",
-            command: "node",
-            args: [MCP_SERVER_PATH],
-            // spread process.env explicitly rather than relying on the SDK's
-            // internal merge behavior for this field — without PATH/HOME
-            // etc. present, spawning `node` as a subprocess can fail
-            // depending on how the underlying transport handles a partial
-            // env object.
-            env: { 
-              ...process.env, 
-              API_BASE_URL: STOCK_API_BASE_URL,
+          "validation-mcp": {
+            type: "sse",
+            url: `http://${MCP_HOST}/validation`,
+            headers: {
               ...(identity ? {
-                SESSION_TOKEN: identity.token,
-                SESSION_STORE_ID: identity.storeId,
-                SESSION_EMPLOYEE_ID: identity.employeeId,
+                "x-session-token": identity.token,
+                "x-session-store-id": identity.storeId,
+                "x-session-employee-id": identity.employeeId,
+              } : {})
+            },
+          },
+          "stock-mcp": {
+            type: "sse",
+            url: `http://${MCP_HOST}/stock`,
+            headers: {
+              ...(identity ? {
+                "x-session-token": identity.token,
+                "x-session-store-id": identity.storeId,
+                "x-session-employee-id": identity.employeeId,
               } : {})
             },
           },
@@ -194,7 +198,7 @@ export class AgentSession {
       if (done) break;
       yield value;
     }
-  } 
+  }
 
   close() {
     this.queue.close();

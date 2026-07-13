@@ -25,12 +25,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from client directory
-app.use("/client", express.static(path.join(__dirname, "../client")));
+// Serve static files based on environment
+const isProd = process.env.NODE_ENV === "production";
+const staticDir = isProd ? path.join(__dirname, "../dist") : path.join(__dirname, "../client");
+
+app.use("/client", express.static(staticDir)); // keep /client mapping for legacy or just use static root
+if (isProd) {
+  app.use(express.static(staticDir));
+}
 
 // Serve index.html at root
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/index.html"));
+  res.sendFile(path.join(staticDir, "index.html"));
 });
 
 // Session management
