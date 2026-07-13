@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Dependencies / build output
+node_modules/
+build/
+dist/
+.gradle/
+out/
+*.iml
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Editor
+.idea/
