@@ -19,4 +19,4 @@ ENV PORT=3001
 EXPOSE 3001
 
 # Run the server using tsx
-CMD ["npx", "tsx", "server/server.ts"]
+CMD ["npx", "tsx", "server/main.ts"]

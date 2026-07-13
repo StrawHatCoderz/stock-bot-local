@@ -98,6 +98,7 @@ app.post("/api/auth/login", async (req, res) => {
       employeeNumber: meBody.employee_number,
       name: meBody.name,
       email: meBody.email,
+      role: meBody.role,
       storeId: meBody.assignedTo,
     };
     res.json(identity);

@@ -16,22 +16,20 @@ export function createApp() {
   app.use(cors());
   app.use(express.json());
 
-  // Serve static files from client directory
-  app.use("/client", express.static(path.join(__dirname, "../../client")));
+  const isProd = process.env.NODE_ENV === "production";
+  const staticDir = isProd
+    ? path.join(__dirname, "../../dist")
+    : path.join(__dirname, "../../client");
 
-  // Serve index.html at root
+  app.use("/client", express.static(staticDir));
+  if (isProd) {
+    app.use(express.static(staticDir));
+  }
+
   app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "../../client/index.html"));
+    res.sendFile(path.join(staticDir, "index.html"));
   });
 
-  // REST API: Login
-  //
-  // Calls the real Auth service directly (POST /api/login, then GET /api/me)
-  // rather than going through the LLM — login is deterministic, not a
-  // reasoning task. The resulting identity is handed back to the client,
-  // which passes it along when creating a chat; from there it's baked into
-  // that chat's agent session (see session.ts, ai-client.ts) so the agent
-  // never needs to call authenticate_user/get_user_details itself.
   app.post("/api/auth/login", async (req, res) => {
     const { username, password } = req.body ?? {};
     if (!username || !password) {
@@ -58,7 +56,7 @@ export function createApp() {
       });
       const meBody: any = await meRes.json().catch(() => ({}));
 
-      if (!meRes.ok || meBody.authorized !== true) {
+      if (!meRes.ok || !meBody.authorized) {
         return res.status(403).json({
           error: meBody.message || "Not authorized as a store manager.",
           errorCode: meBody.errorCode,
@@ -72,6 +70,7 @@ export function createApp() {
         name: meBody.name,
         email: meBody.email,
         storeId: meBody.assignedTo,
+        role: meBody.role,
       };
       res.json(identity);
     } catch (error) {
@@ -80,19 +79,16 @@ export function createApp() {
     }
   });
 
-  // REST API: Get all chats
   app.get("/api/chats", (req, res) => {
     const chats = chatStore.getAllChats();
     res.json(chats);
   });
 
-  // REST API: Create new chat
   app.post("/api/chats", (req, res) => {
     const chat = chatStore.createChat(req.body?.title, req.body?.identity);
     res.status(201).json(chat);
   });
 
-  // REST API: Get single chat
   app.get("/api/chats/:id", (req, res) => {
     const chat = chatStore.getChat(req.params.id);
     if (!chat) {
@@ -101,7 +97,6 @@ export function createApp() {
     res.json(chat);
   });
 
-  // REST API: Delete chat
   app.delete("/api/chats/:id", (req, res) => {
     const deleted = chatStore.deleteChat(req.params.id);
     if (!deleted) {
@@ -115,7 +110,7 @@ export function createApp() {
     res.json({ success: true });
   });
 
-  // REST API: Get chat messages
+  
   app.get("/api/chats/:id/messages", (req, res) => {
     const messages = chatStore.getMessages(req.params.id);
     res.json(messages);

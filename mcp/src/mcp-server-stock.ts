@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { callApi } from "./httpClient.js";
 import { apiResultToToolResult, errorToToolResult } from "./toolResult.js";
-import { getSessionToken, getSessionStoreId, getSessionEmployeeId } from "./context.js";
+import { getSessionToken, getSessionStoreId, getSessionEmployeeId, getSessionRole } from "./context.js";
 
 export const createStockMCPServer = (options: {
   name: string;
@@ -83,6 +83,16 @@ export const createStockMCPServer = (options: {
     },
     async ({ areaId, productId, quantity, reason, remarks }) => {
       try {
+        const role = getSessionRole();
+        if (role !== "STORE_MANAGER") {
+          return {
+            content: [{ type: "text", text: JSON.stringify({
+              status: "FAILED",
+              errorCode: "FORBIDDEN_ROLE",
+              message: "Only store managers can perform zeroisation.",
+            }) }],
+          };
+        }
         const token = getSessionToken();
         const storeId = getSessionStoreId();
         const requestedBy = getSessionEmployeeId();
@@ -96,6 +106,7 @@ export const createStockMCPServer = (options: {
             reason,
             remarks,
             requestedBy,
+            requestedByRole: role,
           },
         });
         return apiResultToToolResult(result);
@@ -135,12 +146,22 @@ export const createStockMCPServer = (options: {
     },
     async ({ areaId, reason, remarks }) => {
       try {
+        const role = getSessionRole();
+        if (role !== "STORE_MANAGER") {
+          return {
+            content: [{ type: "text", text: JSON.stringify({
+              status: "FAILED",
+              errorCode: "FORBIDDEN_ROLE",
+              message: "Only store managers can perform zeroisation.",
+            }) }],
+          };
+        }
         const token = getSessionToken();
         const storeId = getSessionStoreId();
         const requestedBy = getSessionEmployeeId();
         const result = await callApi("POST", "/api/stock/zeroization/area", {
           token,
-          body: { storeId, areaId, reason, remarks, requestedBy },
+          body: { storeId, areaId, reason, remarks, requestedBy, requestedByRole: role },
         });
         return apiResultToToolResult(result);
       } catch (err) {

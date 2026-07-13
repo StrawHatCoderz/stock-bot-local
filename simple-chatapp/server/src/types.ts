@@ -17,6 +17,7 @@ export interface LoginIdentity {
   name: string;
   email: string;
   storeId: string;
+  role: string;
 }
 
 // Chat stored in memory

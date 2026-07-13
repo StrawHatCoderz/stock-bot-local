@@ -15,17 +15,22 @@ final class MockAuthData {
             String employeeNumber,
             String name,
             String email,
-            String assignedTo // storeId this employee currently manages, or null if not a manager
+            String assignedTo, // storeId this employee currently manages, or null if not a manager
+            String role // STORE_MANAGER or STORE_ASSOCIATE
     ) {}
 
     static final List<Employee> EMPLOYEES = List.of(
             new Employee("priya.k", "password123", "EMP-1001", "1001",
-                    "Priya K", "priya.k@example.com", "STORE-101"),
+                    "Priya K", "priya.k@example.com", "STORE-101", "STORE_MANAGER"),
             new Employee("raj.kumar", "password123", "EMP-1002", "1002",
-                    "Raj Kumar", "raj.kumar@example.com", "STORE-102"),
+                    "Raj Kumar", "raj.kumar@example.com", "STORE-102", "STORE_MANAGER"),
             // Valid login, but not a store manager — exercises UNAUTHORIZED_MANAGER.
             new Employee("sam.t", "password123", "EMP-1003", "1003",
-                    "Sam T", "sam.t@example.com", null)
+                    "Sam T", "sam.t@example.com", null, "STORE_ASSOCIATE"),
+            // Passes the login gate (has a store assignment) but is not a
+            // manager — exercises the role-based FORBIDDEN_ROLE check.
+            new Employee("alex.w", "password123", "EMP-1004", "1004",
+                    "Alex W", "alex.w@example.com", "STORE-101", "STORE_ASSOCIATE")
     );
 
     static Employee findByUsername(String username) {

@@ -39,7 +39,7 @@ const ALLOWED_MCP_TOOLS = [
 function buildSystemPrompt(identity: LoginIdentity | undefined): string {
   const identityBlock = identity
     ? `<authentication_status>
-You are already logged in for this conversation. Your internal Context Wrapper automatically attaches your store assignment and identity to every API request.
+You are already logged in for this conversation. Your internal Context Wrapper automatically attaches your store assignment and identity to every API request. Your role is ${identity.role}.
 </authentication_status>`
     : `<authentication_status>
 No login identity is available for this conversation. Tell the user login is required and do not attempt any stock action.
@@ -57,6 +57,7 @@ ${identityBlock}
 2. **Authentication:** Never ask the user for passwords, tokens, or employee IDs. The system handles authentication entirely outside your context.
 3. **Rate Limiting / Abuse:** Do not perform unbounded or infinite loops of tool calls. If an API request fails repeatedly or the user seems to be guessing maliciously, stop making tool calls and ask the user to clarify. Limit tool calls to what is strictly necessary.
 4. **Destructive Actions:** Zeroisation is a destructive, auditable action. Never call \`create_zeroization\` or \`create_area_zeroization\` without first presenting a clear summary of what will be destroyed and receiving explicit, final confirmation from the user.
+5. **Role Restrictions:** \`create_zeroization\` and \`create_area_zeroization\` will return a \`FORBIDDEN_ROLE\` business failure if you are not a store manager. If that happens, relay a polite refusal (e.g. "Sorry, only store managers can perform zeroisation") — do not retry the call or attempt any workaround.
 </security_guardrails>
 
 <intent_classification>
@@ -174,6 +175,7 @@ export class AgentSession {
                 "x-session-token": identity.token,
                 "x-session-store-id": identity.storeId,
                 "x-session-employee-id": identity.employeeId,
+                "x-session-employee-role": identity.role,
               } : {})
             },
           },

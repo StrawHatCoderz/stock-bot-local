@@ -66,9 +66,10 @@ export function createWsServer(server: Server) {
   const heartbeat = setInterval(() => {
     wss.clients.forEach((ws) => {
       const client = ws as WSClient;
-      if (client.isAlive === false) {
+      if (!client.isAlive) {
         return client.terminate();
       }
+      
       client.isAlive = false;
       client.ping();
     });

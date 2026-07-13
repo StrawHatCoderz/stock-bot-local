@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Chat, ChatMessage, LoginIdentity } from "./types.js";
 
-// Simple in-memory store for chats
 class ChatStore {
   private chats: Map<string, Chat> = new Map();
   private messages: Map<string, ChatMessage[]> = new Map();
@@ -78,5 +77,4 @@ class ChatStore {
   }
 }
 
-// Singleton instance
 export const chatStore = new ChatStore();
