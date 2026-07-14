@@ -108,6 +108,31 @@ export const createValidationMCPServer = (options: {
   );
 
   server.registerTool(
+    "list_areas",
+    {
+      title: "List Areas",
+      description:
+        "List every area/location in the current store. Use this when the user asks what " +
+        "areas exist (e.g. 'what areas are in my store?') rather than trying to validate or " +
+        "search for a specific one.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const token = getSessionToken();
+        const storeId = getSessionStoreId();
+        const result = await callApi("GET", "/api/validation/areas", {
+          token,
+          query: { storeId },
+        });
+        return apiResultToToolResult(result);
+      } catch (err) {
+        return errorToToolResult(err);
+      }
+    },
+  );
+
+  server.registerTool(
     "search_products_fuzzy",
     {
       title: "Search Products Fuzzy",

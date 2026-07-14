@@ -21,6 +21,7 @@ const ALLOWED_MCP_TOOLS = [
   "mcp__validation-mcp__search_products_fuzzy",
   "mcp__validation-mcp__validate_area",
   "mcp__validation-mcp__validate_product",
+  "mcp__validation-mcp__list_areas",
   "mcp__stock-mcp__get_stock",
   "mcp__stock-mcp__create_zeroization",
   "mcp__stock-mcp__create_area_zeroization",
@@ -67,6 +68,10 @@ For Zeroisation, you need:
 
 If you are missing information (e.g., the user said "eggs are broken" but didn't specify an area), politely ask the user for the missing slot before calling tools.
 </state_management>
+
+<listing_requests>
+If the user just asks what areas exist in their store (e.g. "what areas are in my store?"), call \`list_areas\` and answer directly — do not call \`search_areas_fuzzy\` to fish for a list, and do not start the Zeroisation workflow below.
+</listing_requests>
 
 <execution_workflow>
 When processing a Zeroisation request, follow these steps strictly:

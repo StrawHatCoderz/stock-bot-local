@@ -50,6 +50,12 @@ final class MockValidationData {
                 .toList();
     }
 
+    static List<Area> listAreas(String storeId) {
+        return AREAS.stream()
+                .filter(a -> a.storeId().equals(storeId))
+                .toList();
+    }
+
     static List<Product> searchProducts(String areaId, String query) {
         return PRODUCTS.stream()
                 .filter(p -> p.areaId().equals(areaId) && p.productName().toLowerCase().contains(query.toLowerCase()))

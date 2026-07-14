@@ -41,6 +41,20 @@ public class ValidationController {
         return ResponseEntity.ok(body);
     }
 
+    @GetMapping("/areas")
+    public ResponseEntity<Map<String, Object>> listAreas(@RequestParam String storeId) {
+        List<MockValidationData.Area> areas = MockValidationData.listAreas(storeId);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("areas", areas.stream().map(area -> {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("areaId", area.areaId());
+            map.put("areaName", area.areaName());
+            map.put("storageType", area.storageType());
+            return map;
+        }).toList());
+        return ResponseEntity.ok(body);
+    }
+
     @PostMapping("/product")
     public ResponseEntity<Map<String, Object>> validateProduct(@RequestBody ProductRequest request) {
         MockValidationData.Product product =
