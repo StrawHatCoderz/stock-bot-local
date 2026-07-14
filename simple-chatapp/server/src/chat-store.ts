@@ -30,15 +30,6 @@ class ChatStore {
     );
   }
 
-  updateChatTitle(id: string, title: string): Chat | undefined {
-    const chat = this.chats.get(id);
-    if (chat) {
-      chat.title = title;
-      chat.updatedAt = new Date().toISOString();
-    }
-    return chat;
-  }
-
   deleteChat(id: string): boolean {
     this.messages.delete(id);
     return this.chats.delete(id);

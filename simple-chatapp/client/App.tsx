@@ -31,11 +31,9 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Handle WebSocket messages
   const handleWSMessage = useCallback((message: any) => {
     switch (message.type) {
       case "connected":
-        console.log("Connected to server");
         break;
 
       case "history":
@@ -97,14 +95,12 @@ export default function App() {
 
   const isConnected = readyState === ReadyState.OPEN;
 
-  // Handle incoming WebSocket messages
   useEffect(() => {
     if (lastJsonMessage) {
       handleWSMessage(lastJsonMessage);
     }
   }, [lastJsonMessage, handleWSMessage]);
 
-  // Fetch all chats
   const fetchChats = async () => {
     try {
       const res = await fetch(`${API_BASE}/chats`);
@@ -132,7 +128,6 @@ export default function App() {
     }
   };
 
-  // Delete chat
   const deleteChat = async (chatId: string) => {
     try {
       await fetch(`${API_BASE}/chats/${chatId}`, { method: "DELETE" });
@@ -146,21 +141,16 @@ export default function App() {
     }
   };
 
-  // Select a chat
   const selectChat = (chatId: string) => {
     setSelectedChatId(chatId);
     setMessages([]);
     setIsLoading(false);
-
-    // Subscribe to chat via WebSocket
     sendJsonMessage({ type: "subscribe", chatId });
   };
 
-  // Send a message
   const handleSendMessage = (content: string) => {
     if (!selectedChatId || !isConnected) return;
 
-    // Add message optimistically
     setMessages((prev) => [
       ...prev,
       {
@@ -173,7 +163,6 @@ export default function App() {
 
     setIsLoading(true);
 
-    // Send via WebSocket
     sendJsonMessage({
       type: "chat",
       content,
@@ -181,7 +170,6 @@ export default function App() {
     });
   };
 
-  // Initial fetch
   useEffect(() => {
     if (identity) {
       fetchChats();
@@ -201,7 +189,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen">
-      {/* Sidebar */}
       <div className="w-64 shrink-0">
         <ChatList
           chats={chats}
@@ -214,7 +201,6 @@ export default function App() {
         />
       </div>
 
-      {/* Main chat area */}
       <ChatWindow
         chatId={selectedChatId}
         messages={messages}

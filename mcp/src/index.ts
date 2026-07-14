@@ -13,11 +13,9 @@ const startServer = async () => {
   });
   app.use(express.json());
 
-  // Store active transports
   const validationTransports = new Map<string, SSEServerTransport>();
   const stockTransports = new Map<string, SSEServerTransport>();
 
-  // Validation MCP endpoints
   app.get("/validation", async (req, res) => {
     try {
       console.log("New Validation SSE connection established");
@@ -63,7 +61,6 @@ const startServer = async () => {
     });
   });
 
-  // Stock MCP endpoints
   app.get("/stock", async (req, res) => {
     console.log("New Stock SSE connection established");
     const stockMCP = createStockMCPServer({
@@ -105,7 +102,6 @@ const startServer = async () => {
     });
   });
 
-  // Global Error Handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error("EXPRESS GLOBAL ERROR:", err);
     res.status(500).send("Internal Server Error");

@@ -1,5 +1,3 @@
-import React from "react";
-
 interface Chat {
   id: string;
   title: string;
@@ -28,7 +26,6 @@ export function ChatList({
 }: ChatListProps) {
   return (
     <div className="flex flex-col h-full bg-gray-900 text-white">
-      {/* Header */}
       <div className="p-4 border-b border-gray-700">
         <button
           onClick={onNewChat}
@@ -39,7 +36,6 @@ export function ChatList({
         </button>
       </div>
 
-      {/* Chat list */}
       <div className="flex-1 overflow-y-auto">
         {chats.length === 0 ? (
           <div className="p-4 text-center text-gray-500">
@@ -75,7 +71,6 @@ export function ChatList({
         )}
       </div>
 
-      {/* Footer */}
       <div className="p-4 border-t border-gray-700">
         {identityName ? (
           <div className="flex items-center justify-between gap-2">

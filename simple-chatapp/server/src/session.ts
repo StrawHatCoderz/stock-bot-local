@@ -17,7 +17,6 @@ export class Session {
     this.agentSession = new AgentSession(identity);
   }
 
-  // Start listening to agent output (call once)
   private async startListening() {
     if (this.isListening) return;
     this.isListening = true;
@@ -32,15 +31,12 @@ export class Session {
     }
   }
 
-  // Send a user message to the agent
   sendMessage(content: string) {
-    // Store user message
     chatStore.addMessage(this.chatId, {
       role: "user",
       content,
     });
 
-    // Broadcast user message to subscribers
     this.broadcast({
       type: "user_message",
       content,
@@ -50,7 +46,6 @@ export class Session {
     // Send to agent first (this starts the session if needed)
     this.agentSession.sendMessage(content);
 
-    // Start listening if not already
     if (!this.isListening) {
       this.startListening();
     }
@@ -126,10 +121,6 @@ export class Session {
     this.subscribers.delete(client);
   }
 
-  hasSubscribers(): boolean {
-    return this.subscribers.size > 0;
-  }
-
   private broadcast(message: any) {
     const messageStr = JSON.stringify(message);
     for (const client of this.subscribers) {
@@ -152,7 +143,6 @@ export class Session {
     });
   }
 
-  // Close the session
   close() {
     this.agentSession.close();
   }

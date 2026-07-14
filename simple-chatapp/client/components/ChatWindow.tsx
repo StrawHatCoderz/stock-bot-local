@@ -132,7 +132,6 @@ export function ChatWindow({
 
   return (
     <div className="flex-1 flex flex-col bg-white">
-      {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
         <h2 className="font-semibold text-gray-800">Chat</h2>
         <div className="flex items-center gap-2">
@@ -144,7 +143,6 @@ export function ChatWindow({
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="text-center text-gray-400 mt-8">
@@ -170,7 +168,6 @@ export function ChatWindow({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <div className="p-4 border-t border-gray-200">
         <form onSubmit={handleSubmit} className="flex gap-2">
           <input

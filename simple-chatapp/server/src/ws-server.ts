@@ -27,7 +27,6 @@ export function createWsServer(server: Server) {
             session.subscribe(ws);
             console.log(`Client subscribed to chat ${message.chatId}`);
 
-            // Send existing messages
             const messages = chatStore.getMessages(message.chatId);
             ws.send(JSON.stringify({
               type: "history",
@@ -55,7 +54,6 @@ export function createWsServer(server: Server) {
 
     ws.on("close", () => {
       console.log("WebSocket client disconnected");
-      // Unsubscribe from all sessions
       for (const session of sessions.values()) {
         session.unsubscribe(ws);
       }
@@ -69,7 +67,7 @@ export function createWsServer(server: Server) {
       if (!client.isAlive) {
         return client.terminate();
       }
-      
+
       client.isAlive = false;
       client.ping();
     });

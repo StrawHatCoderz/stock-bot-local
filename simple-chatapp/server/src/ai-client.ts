@@ -1,10 +1,5 @@
-import { fileURLToPath } from "url";
-import path from "path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { LoginIdentity } from "./types.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // The MCP server lives in a sibling top-level directory (../../mcp relative
 // to this file), built separately (`npm run build` in mcp/) — see
@@ -16,7 +11,7 @@ const MCP_HOST = process.env.MCP_HOST || "localhost:3000";
 // proxies to (e.g. the nginx gateway from services/docker-compose.yml).
 const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://localhost:8080";
 
-// Only the 5 stock-operation tools are exposed to the agent.
+// Only these stock-operation tools are exposed to the agent.
 // authenticate_user/get_user_details exist on the MCP server too, but login
 // already happened server-side before this session is ever created — the
 // agent has no reason to call them, and letting it try would just confuse
@@ -31,11 +26,6 @@ const ALLOWED_MCP_TOOLS = [
   "mcp__stock-mcp__create_area_zeroization",
 ];
 
-/**
- * Grounded in phase-1/01_phase_1_plan.md and phase-1/04_planner-and-memory.md
- * — this is the Node-side "system prompt work" those docs describe as the
- * actual home of the agent's reasoning (not new code, not Planner logic).
- */
 function buildSystemPrompt(identity: LoginIdentity | undefined): string {
   const identityBlock = identity
     ? `<authentication_status>
@@ -113,11 +103,9 @@ class MessageQueue {
     };
 
     if (this.waiting) {
-      // Someone is waiting for a message - give it to them
       this.waiting(msg);
       this.waiting = null;
     } else {
-      // No one waiting - queue it
       this.messages.push(msg);
     }
   }
@@ -127,7 +115,6 @@ class MessageQueue {
       if (this.messages.length > 0) {
         yield this.messages.shift()!;
       } else {
-        // Wait for next message
         yield await new Promise<UserMessage>((resolve) => {
           this.waiting = resolve;
         });
@@ -145,7 +132,6 @@ export class AgentSession {
   private outputIterator: AsyncIterator<any> | null = null;
 
   constructor(identity?: LoginIdentity) {
-    // Start the query immediately with the queue as input
     // Cast to any - SDK accepts simpler message format at runtime
     this.outputIterator = query({
       prompt: this.queue as any,
@@ -184,12 +170,10 @@ export class AgentSession {
     })[Symbol.asyncIterator]();
   }
 
-  // Send a message to the agent
   sendMessage(content: string) {
     this.queue.push(content);
   }
 
-  // Get the output stream
   async *getOutputStream() {
     if (!this.outputIterator) {
       throw new Error("Session not initialized");
