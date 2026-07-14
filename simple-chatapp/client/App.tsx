@@ -197,6 +197,8 @@ export default function App() {
           onNewChat={createChat}
           onDeleteChat={deleteChat}
           identityName={identity.name}
+          identityRole={identity.role}
+          identityStoreId={identity.storeId}
           onLogout={logout}
         />
       </div>

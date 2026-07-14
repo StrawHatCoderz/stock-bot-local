@@ -1,3 +1,5 @@
+import { ProfileMenu } from "./ProfileMenu";
+
 interface Chat {
   id: string;
   title: string;
@@ -12,6 +14,8 @@ interface ChatListProps {
   onNewChat: () => void;
   onDeleteChat: (chatId: string) => void;
   identityName?: string;
+  identityRole?: string;
+  identityStoreId?: string;
   onLogout?: () => void;
 }
 
@@ -22,6 +26,8 @@ export function ChatList({
   onNewChat,
   onDeleteChat,
   identityName,
+  identityRole,
+  identityStoreId,
   onLogout,
 }: ChatListProps) {
   return (
@@ -73,15 +79,12 @@ export function ChatList({
 
       <div className="p-4 border-t border-gray-700">
         {identityName ? (
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-gray-400 truncate">Signed in as {identityName}</p>
-            <button
-              onClick={onLogout}
-              className="text-xs text-gray-400 hover:text-white shrink-0"
-            >
-              Log out
-            </button>
-          </div>
+          <ProfileMenu
+            name={identityName}
+            role={identityRole ?? ""}
+            storeId={identityStoreId ?? ""}
+            onLogout={onLogout}
+          />
         ) : (
           <p className="text-xs text-gray-500 text-center">Simple Chat App</p>
         )}
