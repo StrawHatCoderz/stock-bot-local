@@ -1,0 +1,6 @@
+- remove stale docs
+- remove the stale, debug code
+- change auth architecture
+  - send token to every end point.
+- rbac flow
+- individual chats for induvidual user
