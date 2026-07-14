@@ -7,6 +7,7 @@ export interface Identity {
   name: string;
   email: string;
   storeId: string;
+  role: string;
 }
 
 interface LoginFormProps {
