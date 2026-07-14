@@ -80,6 +80,27 @@ public class AuthController {
         return ResponseEntity.ok(body);
     }
 
+    @GetMapping("/api/auth/verify")
+    public ResponseEntity<Map<String, Object>> verify(
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+
+        String employeeId = resolveEmployeeId(authorization);
+        if (employeeId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        MockAuthData.Employee employee = MockAuthData.findByEmployeeId(employeeId);
+        if (employee == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("employeeId", employee.employeeId());
+        body.put("storeId", employee.assignedTo());
+        body.put("role", employee.role());
+        return ResponseEntity.ok(body);
+    }
+
     private String resolveEmployeeId(String authorizationHeader) {
         if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
             return null;
