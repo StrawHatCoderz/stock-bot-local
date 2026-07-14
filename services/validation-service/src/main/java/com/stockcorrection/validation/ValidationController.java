@@ -63,9 +63,11 @@ public class ValidationController {
     }
 
     @PostMapping("/product")
-    public ResponseEntity<Map<String, Object>> validateProduct(@RequestBody ProductRequest request) {
+    public ResponseEntity<Map<String, Object>> validateProduct(
+            @RequestBody ProductRequest request,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId) {
         MockValidationData.Product product =
-                MockValidationData.findProduct(request.areaId(), request.productName());
+                MockValidationData.findProduct(storeId, request.areaId(), request.productName());
 
         Map<String, Object> body = new LinkedHashMap<>();
         if (product == null) {
@@ -99,9 +101,10 @@ public class ValidationController {
 
     @GetMapping("/product/search")
     public ResponseEntity<Map<String, Object>> searchProducts(
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
             @RequestParam String areaId,
             @RequestParam String q) {
-        List<MockValidationData.Product> products = MockValidationData.searchProducts(areaId, q);
+        List<MockValidationData.Product> products = MockValidationData.searchProducts(storeId, areaId, q);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("candidates", products.stream().map(product -> {
             Map<String, Object> map = new LinkedHashMap<>();

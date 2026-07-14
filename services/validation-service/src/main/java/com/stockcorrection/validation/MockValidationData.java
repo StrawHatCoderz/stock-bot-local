@@ -37,7 +37,10 @@ final class MockValidationData {
                 .orElse(null);
     }
 
-    static Product findProduct(String areaId, String productName) {
+    static Product findProduct(String storeId, String areaId, String productName) {
+        if (!areaBelongsToStore(storeId, areaId)) {
+            return null;
+        }
         return PRODUCTS.stream()
                 .filter(p -> p.areaId().equals(areaId) && p.productName().equalsIgnoreCase(productName))
                 .findFirst()
@@ -56,10 +59,17 @@ final class MockValidationData {
                 .toList();
     }
 
-    static List<Product> searchProducts(String areaId, String query) {
+    static List<Product> searchProducts(String storeId, String areaId, String query) {
+        if (!areaBelongsToStore(storeId, areaId)) {
+            return List.of();
+        }
         return PRODUCTS.stream()
                 .filter(p -> p.areaId().equals(areaId) && p.productName().toLowerCase().contains(query.toLowerCase()))
                 .toList();
+    }
+
+    private static boolean areaBelongsToStore(String storeId, String areaId) {
+        return AREAS.stream().anyMatch(a -> a.areaId().equals(areaId) && a.storeId().equals(storeId));
     }
 
     private MockValidationData() {}
