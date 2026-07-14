@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { callApi } from "./httpClient.js";
 import { apiResultToToolResult, errorToToolResult } from "./toolResult.js";
-import { getSessionToken, getSessionStoreId } from "./context.js";
+import { getSessionToken } from "./context.js";
 
 export const createValidationMCPServer = (options: {
   name: string;
@@ -32,10 +32,9 @@ export const createValidationMCPServer = (options: {
     async ({ areaName }) => {
       try {
         const token = getSessionToken();
-        const storeId = getSessionStoreId();
         const result = await callApi("POST", "/api/validation/area", {
           token,
-          body: { storeId, areaName },
+          body: { areaName },
         });
         return apiResultToToolResult(result);
       } catch (err) {
@@ -65,10 +64,9 @@ export const createValidationMCPServer = (options: {
     async ({ areaId, productName }) => {
       try {
         const token = getSessionToken();
-        const storeId = getSessionStoreId();
         const result = await callApi("POST", "/api/validation/product", {
           token,
-          body: { storeId, areaId, productName },
+          body: { areaId, productName },
         });
         return apiResultToToolResult(result);
       } catch (err) {
@@ -95,10 +93,9 @@ export const createValidationMCPServer = (options: {
     async ({ query }) => {
       try {
         const token = getSessionToken();
-        const storeId = getSessionStoreId();
         const result = await callApi("GET", "/api/validation/area/search", {
           token,
-          query: { storeId, q: query },
+          query: { q: query },
         });
         return apiResultToToolResult(result);
       } catch (err) {
@@ -120,11 +117,7 @@ export const createValidationMCPServer = (options: {
     async () => {
       try {
         const token = getSessionToken();
-        const storeId = getSessionStoreId();
-        const result = await callApi("GET", "/api/validation/areas", {
-          token,
-          query: { storeId },
-        });
+        const result = await callApi("GET", "/api/validation/areas", { token });
         return apiResultToToolResult(result);
       } catch (err) {
         return errorToToolResult(err);
@@ -153,10 +146,9 @@ export const createValidationMCPServer = (options: {
     async ({ areaId, query }) => {
       try {
         const token = getSessionToken();
-        const storeId = getSessionStoreId();
         const result = await callApi("GET", "/api/validation/product/search", {
           token,
-          query: { storeId, areaId, q: query },
+          query: { areaId, q: query },
         });
         return apiResultToToolResult(result);
       } catch (err) {

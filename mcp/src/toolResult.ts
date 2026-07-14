@@ -10,6 +10,15 @@ export type ToolResult = CallToolResult;
  * (see httpClient.ApiTransportError) become an MCP tool error.
  */
 export function apiResultToToolResult(result: ApiResult): ToolResult {
+  if (result.status === 401) {
+    return {
+      content: [
+        { type: "text", text: "Authentication failed: invalid or expired session token." },
+      ],
+      isError: true,
+    };
+  }
+
   const body =
     result.body ?? {
       status: "FAILED",

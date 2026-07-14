@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { callApi } from "./httpClient.js";
 import { apiResultToToolResult, errorToToolResult } from "./toolResult.js";
-import { getSessionToken, getSessionStoreId, getSessionEmployeeId, getSessionRole } from "./context.js";
+import { getSessionToken } from "./context.js";
 
 export const createStockMCPServer = (options: {
   name: string;
@@ -37,10 +37,9 @@ export const createStockMCPServer = (options: {
     async ({ areaId, productId }) => {
       try {
         const token = getSessionToken();
-        const storeId = getSessionStoreId();
         const result = await callApi("GET", "/api/stock", {
           token,
-          query: { storeId, areaId, productId },
+          query: { areaId, productId },
         });
         return apiResultToToolResult(result);
       } catch (err) {
@@ -83,31 +82,10 @@ export const createStockMCPServer = (options: {
     },
     async ({ areaId, productId, quantity, reason, remarks }) => {
       try {
-        const role = getSessionRole();
-        if (role !== "STORE_MANAGER") {
-          return {
-            content: [{ type: "text", text: JSON.stringify({
-              status: "FAILED",
-              errorCode: "FORBIDDEN_ROLE",
-              message: "Only store managers can perform zeroisation.",
-            }) }],
-          };
-        }
         const token = getSessionToken();
-        const storeId = getSessionStoreId();
-        const requestedBy = getSessionEmployeeId();
         const result = await callApi("POST", "/api/stock/zeroization", {
           token,
-          body: {
-            storeId,
-            areaId,
-            productId,
-            quantity,
-            reason,
-            remarks,
-            requestedBy,
-            requestedByRole: role,
-          },
+          body: { areaId, productId, quantity, reason, remarks },
         });
         return apiResultToToolResult(result);
       } catch (err) {
@@ -146,22 +124,10 @@ export const createStockMCPServer = (options: {
     },
     async ({ areaId, reason, remarks }) => {
       try {
-        const role = getSessionRole();
-        if (role !== "STORE_MANAGER") {
-          return {
-            content: [{ type: "text", text: JSON.stringify({
-              status: "FAILED",
-              errorCode: "FORBIDDEN_ROLE",
-              message: "Only store managers can perform zeroisation.",
-            }) }],
-          };
-        }
         const token = getSessionToken();
-        const storeId = getSessionStoreId();
-        const requestedBy = getSessionEmployeeId();
         const result = await callApi("POST", "/api/stock/zeroization/area", {
           token,
-          body: { storeId, areaId, reason, remarks, requestedBy, requestedByRole: role },
+          body: { areaId, reason, remarks },
         });
         return apiResultToToolResult(result);
       } catch (err) {

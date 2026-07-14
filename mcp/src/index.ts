@@ -50,10 +50,8 @@ const startServer = async () => {
     
     const context = {
       token: req.headers["x-session-token"] as string | undefined,
-      storeId: req.headers["x-session-store-id"] as string | undefined,
-      employeeId: req.headers["x-session-employee-id"] as string | undefined,
     };
-    
+
     sessionContext.run(context, () => {
       transport.handlePostMessage(req, res, req.body).catch((e) => {
         console.error("Validation MCP Message Error:", e);
@@ -90,9 +88,6 @@ const startServer = async () => {
     
     const context = {
       token: req.headers["x-session-token"] as string | undefined,
-      storeId: req.headers["x-session-store-id"] as string | undefined,
-      employeeId: req.headers["x-session-employee-id"] as string | undefined,
-      role: req.headers["x-session-employee-role"] as string | undefined,
     };
 
     sessionContext.run(context, () => {
