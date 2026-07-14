@@ -73,7 +73,7 @@ Login never touches the agent. `POST /api/auth/login` in `app.ts` calls the real
 
 `AgentSession` (`ai-client.ts`) does two things with identity:
 1. Bakes it into the system prompt as plain facts (role, "already logged in") via `buildSystemPrompt()`.
-2. Passes it as **SSE headers** on the `mcpServers` config — `x-session-token` / `x-session-store-id` / `x-session-employee-id` on both `validation-mcp` and `stock-mcp`, plus `x-session-employee-role` on `stock-mcp` only (needed for the `create_zeroization`/`create_area_zeroization` RBAC check on the MCP server side). This is **not** stdio and **not** env vars — both MCP servers are registered with `type: "sse"` pointing at `http://${MCP_HOST}/validation` and `/stock`.
+2. Passes only `x-session-token` as an **SSE header** on the `mcpServers` config, for both `validation-mcp` and `stock-mcp`. `storeId`/`employeeId`/`role` are not forwarded as headers — `validation-service`/`stock-service` verify the token against `auth-service` themselves and derive that identity server-side (see root `CLAUDE.md`'s "RBAC lives entirely in `stock-service`"). This is **not** stdio and **not** env vars — both MCP servers are registered with `type: "sse"` pointing at `http://${MCP_HOST}/validation` and `/stock`.
 
 If `identity` is undefined (shouldn't happen given the login gate, but the code tolerates it), the system prompt tells the agent no login is available and to refuse any stock action, and no identity headers are sent.
 
