@@ -14,18 +14,24 @@ import java.util.Map;
  * Both are single-guess-and-retry: an exact (case-insensitive) name match
  * or a not-found response, no fuzzy matching or candidate lists — see
  * api-contract.md's "Note on disambiguation."
+ *
+ * storeId is never accepted from the caller — TokenAuthFilter verifies the
+ * bearer token against auth-service and attaches the caller's real storeId
+ * as a request attribute, read here via @RequestAttribute.
  */
 @RestController
 @RequestMapping("/api/validation")
 public class ValidationController {
 
-    record AreaRequest(String storeId, String areaName) {}
+    record AreaRequest(String areaName) {}
 
-    record ProductRequest(String storeId, String areaId, String productName) {}
+    record ProductRequest(String areaId, String productName) {}
 
     @PostMapping("/area")
-    public ResponseEntity<Map<String, Object>> validateArea(@RequestBody AreaRequest request) {
-        MockValidationData.Area area = MockValidationData.findArea(request.storeId(), request.areaName());
+    public ResponseEntity<Map<String, Object>> validateArea(
+            @RequestBody AreaRequest request,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId) {
+        MockValidationData.Area area = MockValidationData.findArea(storeId, request.areaName());
 
         Map<String, Object> body = new LinkedHashMap<>();
         if (area == null) {
@@ -42,7 +48,8 @@ public class ValidationController {
     }
 
     @GetMapping("/areas")
-    public ResponseEntity<Map<String, Object>> listAreas(@RequestParam String storeId) {
+    public ResponseEntity<Map<String, Object>> listAreas(
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId) {
         List<MockValidationData.Area> areas = MockValidationData.listAreas(storeId);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("areas", areas.stream().map(area -> {
@@ -56,9 +63,11 @@ public class ValidationController {
     }
 
     @PostMapping("/product")
-    public ResponseEntity<Map<String, Object>> validateProduct(@RequestBody ProductRequest request) {
+    public ResponseEntity<Map<String, Object>> validateProduct(
+            @RequestBody ProductRequest request,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId) {
         MockValidationData.Product product =
-                MockValidationData.findProduct(request.areaId(), request.productName());
+                MockValidationData.findProduct(storeId, request.areaId(), request.productName());
 
         Map<String, Object> body = new LinkedHashMap<>();
         if (product == null) {
@@ -76,7 +85,7 @@ public class ValidationController {
 
     @GetMapping("/area/search")
     public ResponseEntity<Map<String, Object>> searchAreas(
-            @RequestParam String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
             @RequestParam String q) {
         List<MockValidationData.Area> areas = MockValidationData.searchAreas(storeId, q);
         Map<String, Object> body = new LinkedHashMap<>();
@@ -92,10 +101,10 @@ public class ValidationController {
 
     @GetMapping("/product/search")
     public ResponseEntity<Map<String, Object>> searchProducts(
-            @RequestParam String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
             @RequestParam String areaId,
             @RequestParam String q) {
-        List<MockValidationData.Product> products = MockValidationData.searchProducts(areaId, q);
+        List<MockValidationData.Product> products = MockValidationData.searchProducts(storeId, areaId, q);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("candidates", products.stream().map(product -> {
             Map<String, Object> map = new LinkedHashMap<>();

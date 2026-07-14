@@ -11,6 +11,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Mock StockAPI per phase-1/05_api-contract.md — GET /api/stock,
  * POST /api/stock/zeroization, POST /api/stock/zeroization/area.
+ *
+ * storeId/role/requestedBy are never accepted from the caller —
+ * TokenAuthFilter verifies the bearer token against auth-service and
+ * attaches the caller's real identity as request attributes, read here via
+ * @RequestAttribute.
  */
 @RestController
 @RequestMapping("/api/stock")
@@ -21,17 +26,13 @@ public class StockController {
     private final AtomicInteger transactionSeq = new AtomicInteger(88292);
 
     record ZeroizationRequest(
-            String storeId, String areaId, String productId,
-            long quantity, String reason, String remarks, String requestedBy,
-            String requestedByRole) {}
+            String areaId, String productId, long quantity, String reason, String remarks) {}
 
-    record AreaZeroizationRequest(
-            String storeId, String areaId, String reason, String remarks, String requestedBy,
-            String requestedByRole) {}
+    record AreaZeroizationRequest(String areaId, String reason, String remarks) {}
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> getStock(
-            @RequestParam String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
             @RequestParam String areaId,
             @RequestParam(required = false) String productId) {
 
@@ -78,12 +79,15 @@ public class StockController {
     }
 
     @PostMapping("/zeroization")
-    public ResponseEntity<Map<String, Object>> createZeroization(@RequestBody ZeroizationRequest request) {
-        if (!"STORE_MANAGER".equals(request.requestedByRole())) {
+    public ResponseEntity<Map<String, Object>> createZeroization(
+            @RequestBody ZeroizationRequest request,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+        if (!"STORE_MANAGER".equals(role)) {
             return ResponseEntity.ok(forbiddenRoleBody());
         }
 
-        MockStockData.StockItem item = MockStockData.find(request.storeId(), request.areaId(), request.productId());
+        MockStockData.StockItem item = MockStockData.find(storeId, request.areaId(), request.productId());
 
         if (item == null) {
             return ResponseEntity.ok(failureBody());
@@ -100,12 +104,15 @@ public class StockController {
     }
 
     @PostMapping("/zeroization/area")
-    public ResponseEntity<Map<String, Object>> createAreaZeroization(@RequestBody AreaZeroizationRequest request) {
-        if (!"STORE_MANAGER".equals(request.requestedByRole())) {
+    public ResponseEntity<Map<String, Object>> createAreaZeroization(
+            @RequestBody AreaZeroizationRequest request,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+        if (!"STORE_MANAGER".equals(role)) {
             return ResponseEntity.ok(forbiddenRoleBody());
         }
 
-        List<MockStockData.StockItem> items = MockStockData.findByArea(request.storeId(), request.areaId());
+        List<MockStockData.StockItem> items = MockStockData.findByArea(storeId, request.areaId());
 
         if (items.isEmpty()) {
             return ResponseEntity.ok(failureBody());
