@@ -23,7 +23,7 @@ cd services
 docker-compose up --build   # starts auth/validation/stock + nginx gateway
 ```
 
-The gateway is the only container that publishes a host port: **`http://localhost:8085`** (see `services/docker-compose.yml` — `api-gateway` maps `8085:80`). The three backend containers aren't reachable directly in this mode. `mcp/.env.example` and `simple-chatapp/.env` default their base URLs to `:8080`, which is **stale/wrong** for this compose file — override `API_BASE_URL` / `STOCK_API_BASE_URL` to `http://localhost:8085` when running via docker-compose, or run services directly (below) and skip the gateway.
+The gateway is the only container that publishes a host port: **`http://localhost:8080`** (see `services/docker-compose.yml` — `api-gateway` maps `8080:80`). The three backend containers aren't reachable directly in this mode. `mcp/.env.example` and `simple-chatapp/server/.env` already default their base URLs to `:8080`, matching this gateway port. Inside the root `docker-compose.yml`, `mcp` and `chatapp` instead point at the container network name (`http://api-gateway:80`) rather than the host port — see "Environment variables" below.
 
 Or run each service individually with Gradle, hitting each port directly (no gateway):
 ```bash
@@ -81,7 +81,7 @@ Express server (:3001, server/main.ts → src/app.ts + src/ws-server.ts)
                         ├── GET/POST /validation → validation-mcp
                         └── GET/POST /stock      → stock-mcp
                                 ↕ HTTP
-                            nginx gateway (:8085 in docker-compose; :8081-8083 direct)
+                            nginx gateway (:8080 in docker-compose; :8081-8083 direct)
                                 ├── auth-service
                                 ├── validation-service
                                 └── stock-service
@@ -126,6 +126,12 @@ Express server (:3001, server/main.ts → src/app.ts + src/ws-server.ts)
 - `PORT` — optional, defaults to 3001
 
 **`mcp/.env`**: `API_BASE_URL` (default `http://localhost:8080` in `.env.example` — same port note applies), `PORT` (default 3000). In `docker-compose.yml` at repo root, `API_BASE_URL` and `MCP_HOST` are set to the container network names (`api-gateway:80`, `mcp:3000`) rather than these host defaults.
+
+**Root `.env`** (from `.env.example`): only read by `docker-compose` itself, for `${...}` substitution in `docker-compose.yml` — not by any service directly.
+- `ANTHROPIC_API_KEY` — required; substituted into the `chatapp` container's env at runtime (not baked into the image)
+- `COMPOSE_PARALLEL_LIMIT` — optional, caps concurrent service builds
+
+See [`docs/running-in-production.md`](docs/running-in-production.md) for the full docker-compose walkthrough.
 
 ## Planning docs
 

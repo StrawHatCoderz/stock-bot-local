@@ -22,6 +22,7 @@ services:
     ports:
       - "3001:3001"
     environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - STOCK_API_BASE_URL=http://api-gateway:80
       - MCP_HOST=mcp:3000
     networks:

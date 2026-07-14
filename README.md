@@ -25,19 +25,18 @@ and Store-to-Store Transfer are phase 2/3 and not implemented.
 From the repo root:
 
 ```bash
-# create simple-chatapp/.env first with ANTHROPIC_API_KEY=... — the chatapp
-# image bakes in whatever's in that file at build time, so it must exist
-# before you build
+cp .env.example .env   # set ANTHROPIC_API_KEY — docker-compose injects it
+                        # into the chatapp container at runtime
 docker-compose up --build
 ```
 
 This starts auth/validation/stock/nginx-gateway (gateway on
-http://localhost:8085), `mcp` (:3000), and `chatapp` (:3001) together on one
+http://localhost:8080), `mcp` (:3000), and `chatapp` (:3001) together on one
 Docker network. Visit http://localhost:3001 and log in with a seeded store
 manager account (`priya.k` / `password123` — see `CLAUDE.md` for the full
 test-account table).
 
-For local development with hot reload, per-component commands, the full
-architecture diagram, and known gaps (e.g. `mcp/.env.example` defaults
-`API_BASE_URL` to `:8080` instead of the gateway's actual `:8085`), see
-`CLAUDE.md`.
+See [`docs/running-in-production.md`](docs/running-in-production.md) for
+the full walkthrough (env vars, port table, logs, rebuild/teardown
+commands). For local development with hot reload, per-component commands,
+and the full architecture diagram, see `CLAUDE.md`.
