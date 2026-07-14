@@ -1,22 +1,27 @@
-FROM node:20-alpine
-
-WORKDIR /app
-
-# Install dependencies
-COPY package*.json ./
+# ---- Build client ----
+FROM node:20-alpine AS client-build
+WORKDIR /app/client
+COPY client/package*.json ./
 RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Build the Vite frontend
+COPY client/ .
 RUN npm run build
 
-# Set production env
-ENV NODE_ENV=production
-ENV PORT=3001
+# ---- Compile server ----
+FROM node:20-alpine AS server-build
+WORKDIR /app/server
+COPY server/package*.json ./
+RUN npm ci
+COPY server/ .
+RUN npm run build
+
+# ---- Production image: backend only ----
+FROM node:20-alpine AS production
+WORKDIR /app
+COPY server/package*.json ./
+RUN npm ci --omit=dev
+COPY --from=server-build /app/server/dist ./dist
+COPY --from=client-build /app/client/dist ./public
 
 EXPOSE 3001
 
-# Run the server using tsx
-CMD ["npx", "tsx", "server/main.ts"]
+CMD ["node", "dist/main.js"]

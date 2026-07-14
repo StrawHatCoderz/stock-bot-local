@@ -41,11 +41,20 @@ npm run build        # compiles TypeScript → build/index.js
 
 ### Chat app
 
+`client/` and `server/` are independent packages — install and run each
+separately, in two terminals:
+
 ```bash
-cd simple-chatapp
+cd simple-chatapp/server
 cp .env.example .env   # set ANTHROPIC_API_KEY
 npm install
-npm run dev            # starts Express on :3001 + Vite on :5173
+npm run dev             # starts Express on :3001
+```
+
+```bash
+cd simple-chatapp/client
+npm install
+npm run dev             # starts Vite on :5173
 ```
 
 Visit http://localhost:5173. Log in with a seeded store manager account before the chat UI appears.
@@ -89,7 +98,7 @@ Express server (:3001)
 
 ## Environment variables
 
-**`simple-chatapp/.env`** (from `.env.example`):
+**`simple-chatapp/server/.env`** (from `server/.env.example`):
 - `ANTHROPIC_API_KEY` — required
 - `STOCK_API_BASE_URL` — defaults to `http://localhost:8080` (the nginx gateway)
 - `PORT` — optional, defaults to 3001

@@ -21,15 +21,21 @@ Requires the mock backend (`../services/`, via `docker-compose up --build`
 or the three `bootRun` processes) and `../mcp/` built (`npm run build`)
 first — see `README.md`.
 
+`client/` and `server/` are independent packages with their own
+`package.json` — install and run each separately, in two terminals:
+
 ```bash
-cd simple-chatapp
+cd simple-chatapp/server
 npm install
-npm run dev
+cp .env.example .env   # set ANTHROPIC_API_KEY
+npm run dev             # Express + WebSocket on http://localhost:3001
 ```
 
-This starts both:
-- Backend server on http://localhost:3001
-- Vite dev server on http://localhost:5173
+```bash
+cd simple-chatapp/client
+npm install
+npm run dev             # Vite dev server on http://localhost:5173
+```
 
 Visit http://localhost:5173 — you'll land on a login form before the chat UI.
 
@@ -54,31 +60,34 @@ Visit http://localhost:5173 — you'll land on a login form before the chat UI.
 
 ```
 simple-chatapp/
-├── client/                    # React frontend
+├── client/                    # React frontend (own package.json)
 │   ├── App.tsx               # Main app component, login gate
 │   ├── index.tsx             # Entry point
 │   ├── index.html            # HTML template
 │   ├── globals.css           # Tailwind CSS
-│   └── components/
-│       ├── LoginForm.tsx     # Username/password form, calls POST /api/auth/login
-│       ├── ChatList.tsx      # Left sidebar with chat list + logged-in identity/logout
-│       └── ChatWindow.tsx    # Main chat interface
-├── server/
+│   ├── components/
+│   │   ├── LoginForm.tsx     # Username/password form, calls POST /api/auth/login
+│   │   ├── ChatList.tsx      # Left sidebar with chat list + logged-in identity/logout
+│   │   └── ChatWindow.tsx    # Main chat interface
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   └── postcss.config.js
+├── server/                    # Express + WebSocket backend (own package.json)
 │   ├── main.ts                # Entrypoint: creates app + WS server, starts listening
-│   └── src/
-│       ├── app.ts             # Express app factory (REST routes), POST /api/auth/login
-│       ├── ws-server.ts       # WebSocket server factory (connection handling, heartbeat)
-│       ├── session-registry.ts # Shared chatId -> Session map
-│       ├── ai-client.ts       # Claude Agent SDK wrapper, MCP server registration, system prompt
-│       ├── session.ts         # Chat session management, reads identity for AgentSession
-│       ├── chat-store.ts      # In-memory chat storage (now carries identity per chat)
-│       └── types.ts           # TypeScript types, incl. LoginIdentity
-├── .env.example               # ANTHROPIC_API_KEY, STOCK_API_BASE_URL, PORT
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── tailwind.config.js
-└── postcss.config.js
+│   ├── src/
+│   │   ├── app.ts             # Express app factory (REST routes), POST /api/auth/login
+│   │   ├── ws-server.ts       # WebSocket server factory (connection handling, heartbeat)
+│   │   ├── session-registry.ts # Shared chatId -> Session map
+│   │   ├── ai-client.ts       # Claude Agent SDK wrapper, MCP server registration, system prompt
+│   │   ├── session.ts         # Chat session management, reads identity for AgentSession
+│   │   ├── chat-store.ts      # In-memory chat storage (now carries identity per chat)
+│   │   └── types.ts           # TypeScript types, incl. LoginIdentity
+│   ├── .env.example           # ANTHROPIC_API_KEY, STOCK_API_BASE_URL, PORT
+│   ├── package.json
+│   └── tsconfig.json
+└── Dockerfile                  # multi-stage: build client, compile server, backend-only final image
 ```
 
 ## API Endpoints
@@ -115,4 +124,6 @@ simple-chatapp/
   `create_area_zeroization`) — no Bash/Read/Write/file/web access, unlike
   the original demo scaffold this was built from
 - Uses Vite for frontend development with hot reload
-- Uses tsx for TypeScript execution on the backend
+- Backend uses `tsx` for TypeScript execution in dev; the Docker image
+  compiles the server with `tsc` and runs plain `node dist/main.js`
+  instead (`server/package.json`'s `build`/`start` scripts)

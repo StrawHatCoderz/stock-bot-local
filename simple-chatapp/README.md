@@ -20,14 +20,27 @@ which proxies to the real Auth/Validation/Stock backend under `../services/`.
 ### Installation
 
 ```bash
+cd server
 npm install
 cp .env.example .env   # then set ANTHROPIC_API_KEY; STOCK_API_BASE_URL
                         # defaults to the docker-compose gateway
+cd ../client
+npm install
 ```
 
 ### Running
 
+In one terminal:
+
 ```bash
+cd server
+npm run dev
+```
+
+In a second terminal:
+
+```bash
+cd client
 npm run dev
 ```
 

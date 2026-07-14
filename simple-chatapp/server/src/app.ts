@@ -1,13 +1,9 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from "url";
 import type { LoginIdentity } from "./types.js";
 import { chatStore } from "./chat-store.js";
 import { sessions } from "./session-registry.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://localhost:8080";
 
@@ -16,15 +12,8 @@ export function createApp() {
   app.use(cors());
   app.use(express.json());
 
-  const isProd = process.env.NODE_ENV === "production";
-  const staticDir = isProd
-    ? path.join(__dirname, "../../dist")
-    : path.join(__dirname, "../../client");
-
-  app.use("/client", express.static(staticDir));
-  if (isProd) {
-    app.use(express.static(staticDir));
-  }
+  const staticDir = path.join(process.cwd(), "public");
+  app.use(express.static(staticDir));
 
   app.get("/", (req, res) => {
     res.sendFile(path.join(staticDir, "index.html"));
@@ -110,7 +99,7 @@ export function createApp() {
     res.json({ success: true });
   });
 
-  
+
   app.get("/api/chats/:id/messages", (req, res) => {
     const messages = chatStore.getMessages(req.params.id);
     res.json(messages);

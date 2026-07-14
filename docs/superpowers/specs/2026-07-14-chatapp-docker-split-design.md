@@ -204,17 +204,16 @@ RUN npm ci --omit=dev
 COPY --from=server-build /app/server/dist ./dist
 COPY --from=client-build /app/client/dist ./public
 
-ENV NODE_ENV=production
-ENV PORT=3001
 EXPOSE 3001
 
 CMD ["node", "dist/main.js"]
 ```
 
-`NODE_ENV=production` is kept as a Docker-image default (standard
-practice, e.g. it makes Express itself skip debug-mode behavior) but
-`app.ts` no longer reads it for anything — so a missing/misconfigured env
-var can no longer cause wrong-directory static serving.
+No `ENV` instructions in the image at all: `app.ts` no longer reads
+`NODE_ENV` for anything, and `PORT` already defaults to `3001` in
+`main.ts` (`process.env.PORT || 3001`) if the orchestrator (e.g.
+`docker-compose.yml`) doesn't set it. `EXPOSE 3001` stays — it's metadata
+for tooling, not an env var.
 
 ## `.dockerignore`
 
