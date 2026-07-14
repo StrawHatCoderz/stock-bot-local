@@ -10,6 +10,8 @@ services:
     build:
       context: .
       dockerfile: validation-service/Dockerfile
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8081
     networks:
       - mock-net
 
@@ -17,6 +19,8 @@ services:
     build:
       context: .
       dockerfile: stock-service/Dockerfile
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8081
     networks:
       - mock-net
 
