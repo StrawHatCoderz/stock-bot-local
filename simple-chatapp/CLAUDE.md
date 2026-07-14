@@ -53,7 +53,7 @@ server/main.ts  →  createApp() [src/app.ts]   +  createWsServer() [src/ws-serv
                         │                    src/session.ts (Session: one per chat, owns an AgentSession)
                         │                              ↓
                         │                    src/ai-client.ts (AgentSession: Claude Agent SDK `query()`)
-                        │                              ↕ SSE, 2 MCP servers, identity via headers
+                        │                              ↕ SSE, 2 MCP servers, identity via a token header
                         │                          ../mcp/ (validation-mcp, stock-mcp)
                         ↓
                 src/chat-store.ts (in-memory chats + messages, holds identity per chat)
@@ -75,11 +75,11 @@ Login never touches the agent. `POST /api/auth/login` in `app.ts` calls the real
 1. Bakes it into the system prompt as plain facts (role, "already logged in") via `buildSystemPrompt()`.
 2. Passes only `x-session-token` as an **SSE header** on the `mcpServers` config, for both `validation-mcp` and `stock-mcp`. `storeId`/`employeeId`/`role` are not forwarded as headers — `validation-service`/`stock-service` verify the token against `auth-service` themselves and derive that identity server-side (see root `CLAUDE.md`'s "RBAC lives entirely in `stock-service`"). This is **not** stdio and **not** env vars — both MCP servers are registered with `type: "sse"` pointing at `http://${MCP_HOST}/validation` and `/stock`.
 
-If `identity` is undefined (shouldn't happen given the login gate, but the code tolerates it), the system prompt tells the agent no login is available and to refuse any stock action, and no identity headers are sent.
+If `identity` is undefined (shouldn't happen given the login gate, but the code tolerates it), the system prompt tells the agent no login is available and to refuse any stock action, and no identity header is sent.
 
 ### Allowed tools
 
-`ALLOWED_MCP_TOOLS` in `ai-client.ts` is **8** tools, not 5: `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product`, `list_areas` (validation-mcp) plus `get_stock`, `create_zeroization`, `create_area_zeroization` (stock-mcp). `list_areas` takes no params and returns every area in the caller's own store (scoped via the `x-session-store-id` header/`sessionContext`, same as the other validation tools) — it's for "what areas are in my store?"-style questions, not the fuzzy-search-then-validate workflow. `authenticate_user`/`get_user_details` exist on the MCP server but are deliberately excluded — the agent never authenticates itself.
+`ALLOWED_MCP_TOOLS` in `ai-client.ts` is **8** tools, not 5: `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product`, `list_areas` (validation-mcp) plus `get_stock`, `create_zeroization`, `create_area_zeroization` (stock-mcp). `list_areas` takes no params and returns every area in the caller's own store (storeId is derived server-side from the verified session token, same as the other validation tools — see "Identity flow" above) — it's for "what areas are in my store?"-style questions, not the fuzzy-search-then-validate workflow. `authenticate_user`/`get_user_details` exist on the MCP server but are deliberately excluded — the agent never authenticates itself.
 
 ### System prompt structure (`buildSystemPrompt` in `ai-client.ts`)
 

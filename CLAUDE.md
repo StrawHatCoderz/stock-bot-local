@@ -76,7 +76,7 @@ Browser (React/Vite :5173)
 Express server (:3001, server/main.ts → src/app.ts + src/ws-server.ts)
     ├── POST /api/auth/login → calls Java auth-service directly (not via agent)
     └── WebSocket → AgentSession (Claude Agent SDK, src/ai-client.ts)
-                        ↕ SSE (2 MCP clients, headers carry identity per-request)
+                        ↕ SSE (2 MCP clients, a token header carries identity per-request)
                     mcp/src/index.ts (Express, PORT default 3000)
                         ├── GET/POST /validation → validation-mcp
                         └── GET/POST /stock      → stock-mcp
