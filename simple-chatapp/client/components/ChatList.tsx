@@ -72,7 +72,7 @@ export function ChatList({
                   ✕
                 </button>
               </div>
-            ))}
+                  ))}
           </div>
         )}
       </div>

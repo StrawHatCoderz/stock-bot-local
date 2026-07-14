@@ -97,7 +97,7 @@ Express server (:3001, server/main.ts → src/app.ts + src/ws-server.ts)
 
 **Agent model:** `claude-sonnet-5` (set in `simple-chatapp/server/src/ai-client.ts`).
 
-**Allowed tools** (`ALLOWED_MCP_TOOLS` in `ai-client.ts`, 7 total): `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product` (validation-mcp) and `get_stock`, `create_zeroization`, `create_area_zeroization` (stock-mcp).
+**Allowed tools** (`ALLOWED_MCP_TOOLS` in `ai-client.ts`, 8 total): `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product`, `list_areas` (validation-mcp) and `get_stock`, `create_zeroization`, `create_area_zeroization` (stock-mcp). `list_areas` returns every area in the caller's store with no params — for "what areas exist" questions, bypassing fuzzy-search-then-validate.
 
 **Fuzzy search before exact validation.** The system prompt instructs the agent to call `search_areas_fuzzy`/`search_products_fuzzy` first to get candidates, disambiguate with the user if there are multiple, then call `validate_area`/`validate_product`.
 

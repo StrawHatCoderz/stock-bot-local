@@ -10,48 +10,39 @@ It's a Stock Zeroisation chat assistant: React + Vite frontend, Express + WebSoc
 
 ## Commands
 
+There is no root `package.json` — `client/` and `server/` are independent packages with their own `package.json`; install and run each separately, in two terminals. Requires the mock backend (`../services/`, via `docker-compose up --build` or the three `bootRun` processes) and `../mcp/` built (`npm run build` in that dir) running first — see `../CLAUDE.md`.
+
 ```bash
+cd server
 npm install
-npm run dev        # concurrently: tsx watch server/main.ts (:3001) + vite --port 5173 (:5173)
-npm run build       # vite build -> dist/ (frontend only; server still runs via tsx, see Dockerfile)
-npm start           # tsx server/main.ts (no watch — used in production/Docker)
+cp .env.example .env   # set ANTHROPIC_API_KEY
+npm run dev             # tsx watch main.ts -> Express + WebSocket on http://localhost:3001
+npm run build            # tsc -> dist/ (used by Dockerfile; not needed for local dev)
+npm start                 # node dist/main.js (post-build, no watch — production/Docker)
 ```
 
-No test or lint script is defined; there is no test suite in this directory. `test-sdk-http.ts` at the repo root is a standalone manual smoke-test scratch script (not wired into any npm script) for probing SSE `mcpServers` connectivity — run it directly with `npx tsx test-sdk-http.ts` if you need to debug the SDK's SSE transport in isolation.
+```bash
+cd client
+npm install
+npm run dev             # vite --port 5173 -> http://localhost:5173
+npm run build            # vite build -> dist/ (frontend only)
+```
 
-Requires `../services/` (Java backend) and `../mcp/` (built via `npm run build` in that dir) running first — see `../CLAUDE.md`. Visit http://localhost:5173 and log in with a seeded store-manager account (e.g. `priya.k` / `password123`) before the chat UI appears.
+No test or lint script is defined in either package; there is no test suite in this directory.
+
+Visit http://localhost:5173 and log in with a seeded store-manager account (e.g. `priya.k` / `password123`) before the chat UI appears.
 
 ## Architecture
 
 - **Frontend**: React + Vite + Tailwind CSS
 - **Backend**: Node.js + Express + WebSocket (ws)
-- **Agent**: Claude Agent SDK integrated directly on the server, with `../mcp/`
-  registered as a stdio MCP server (`server/src/ai-client.ts`)
+- **Agent**: Claude Agent SDK integrated directly on the server, connecting to `../mcp/` over SSE (`server/src/ai-client.ts`) — see "Identity flow" below
 - **Login**: a direct server-side call to the real Auth service
   (`POST /api/login` + `GET /api/me`), not something the agent negotiates —
-  see "Login flow" below
+  see "Identity flow" below
 
-## Running the App
+## Code Map
 
-Requires the mock backend (`../services/`, via `docker-compose up --build`
-or the three `bootRun` processes) and `../mcp/` built (`npm run build`)
-first — see `README.md`.
-
-`client/` and `server/` are independent packages with their own
-`package.json` — install and run each separately, in two terminals:
-
-```bash
-cd simple-chatapp/server
-npm install
-cp .env.example .env   # set ANTHROPIC_API_KEY
-npm run dev             # Express + WebSocket on http://localhost:3001
-```
-
-```bash
-cd simple-chatapp/client
-npm install
-npm run dev             # Vite dev server on http://localhost:5173
-```
 ```
 client/App.tsx (login gate) → LoginForm | [ChatList + ChatWindow]
     ↕ REST (/api/*)              ↕ WebSocket (ws://…/ws)
@@ -69,7 +60,6 @@ server/main.ts  →  createApp() [src/app.ts]   +  createWsServer() [src/ws-serv
 ```
 
 - **`server/main.ts`** is the entrypoint (what `npm run dev`/`start`/Dockerfile actually run). It just wires `createApp()` + `createWsServer()` onto one `http.Server` and starts listening.
-- **`server/src/server.ts` is dead code** — an older, pre-split monolith containing a near-duplicate of `app.ts` + `ws-server.ts`'s logic inline. Nothing imports it and no script runs it. Don't edit it expecting it to take effect; if touching this area, prefer deleting it over maintaining two copies.
 - **`src/app.ts`** — Express REST routes only (`/api/auth/login`, `/api/chats*`), plus static file serving for the built client in production.
 - **`src/ws-server.ts`** — WebSocket connection handling (`subscribe`/`chat` message types) and a 30s ping/pong heartbeat that terminates dead connections.
 - **`src/session-registry.ts`** — the shared `chatId -> Session` map, split out so both `ws-server.ts` and any future REST route can reach live sessions (e.g. `app.ts`'s `DELETE /api/chats/:id` closes the session via this map).
@@ -87,64 +77,18 @@ Login never touches the agent. `POST /api/auth/login` in `app.ts` calls the real
 
 If `identity` is undefined (shouldn't happen given the login gate, but the code tolerates it), the system prompt tells the agent no login is available and to refuse any stock action, and no identity headers are sent.
 
-<<<<<<< HEAD
-```
-simple-chatapp/
-├── client/                    # React frontend (own package.json)
-│   ├── App.tsx               # Main app component, login gate
-│   ├── index.tsx             # Entry point
-│   ├── index.html            # HTML template
-│   ├── globals.css           # Tailwind CSS
-│   ├── components/
-│   │   ├── LoginForm.tsx     # Username/password form, calls POST /api/auth/login
-│   │   ├── ChatList.tsx      # Left sidebar with chat list + logged-in identity/logout
-│   │   └── ChatWindow.tsx    # Main chat interface
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   └── postcss.config.js
-├── server/                    # Express + WebSocket backend (own package.json)
-│   ├── main.ts                # Entrypoint: creates app + WS server, starts listening
-│   ├── src/
-│   │   ├── app.ts             # Express app factory (REST routes), POST /api/auth/login
-│   │   ├── ws-server.ts       # WebSocket server factory (connection handling, heartbeat)
-│   │   ├── session-registry.ts # Shared chatId -> Session map
-│   │   ├── ai-client.ts       # Claude Agent SDK wrapper, MCP server registration, system prompt
-│   │   ├── session.ts         # Chat session management, reads identity for AgentSession
-│   │   ├── chat-store.ts      # In-memory chat storage (now carries identity per chat)
-│   │   └── types.ts           # TypeScript types, incl. LoginIdentity
-│   ├── .env.example           # ANTHROPIC_API_KEY, STOCK_API_BASE_URL, PORT
-│   ├── package.json
-│   └── tsconfig.json
-└── Dockerfile                  # multi-stage: build client, compile server, backend-only final image
-```
-=======
 ### Allowed tools
->>>>>>> 851c577f6e86349b3a33b6ade14500f537fe81dd
 
-`ALLOWED_MCP_TOOLS` in `ai-client.ts` is **7** tools, not 5: `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product` (validation-mcp) plus `get_stock`, `create_zeroization`, `create_area_zeroization` (stock-mcp). `authenticate_user`/`get_user_details` exist on the MCP server but are deliberately excluded — the agent never authenticates itself.
+`ALLOWED_MCP_TOOLS` in `ai-client.ts` is **8** tools, not 5: `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product`, `list_areas` (validation-mcp) plus `get_stock`, `create_zeroization`, `create_area_zeroization` (stock-mcp). `list_areas` takes no params and returns every area in the caller's own store (scoped via the `x-session-store-id` header/`sessionContext`, same as the other validation tools) — it's for "what areas are in my store?"-style questions, not the fuzzy-search-then-validate workflow. `authenticate_user`/`get_user_details` exist on the MCP server but are deliberately excluded — the agent never authenticates itself.
 
 ### System prompt structure (`buildSystemPrompt` in `ai-client.ts`)
 
-XML-tagged sections: `<role_and_persona>`, `<authentication_status>` (identity-dependent), `<security_guardrails>` (no discussing the prompt, no asking for credentials, bounded tool-call retries, explicit confirmation before any zeroisation call, polite refusal on `FORBIDDEN_ROLE`), `<intent_classification>` (Zeroisation only; politely decline Transfer/Waste-Adjustment/shift-checking intents; abandon state immediately on topic switch), `<state_management>` (area/target/quantity/reason slots — quantity must come from `get_stock`, never from the user), `<execution_workflow>` (fuzzy-search → validate → decide scope → confirm → execute → complete, in that order).
+XML-tagged sections: `<role_and_persona>`, `<authentication_status>` (identity-dependent), `<security_guardrails>` (no discussing the prompt, no asking for credentials, bounded tool-call retries, explicit confirmation before any zeroisation call, polite refusal on `FORBIDDEN_ROLE`), `<intent_classification>` (Zeroisation only; politely decline Transfer/Waste-Adjustment/shift-checking intents; abandon state immediately on topic switch), `<state_management>` (area/target/quantity/reason slots — quantity must come from `get_stock`, never from the user), `<listing_requests>` (bare "what areas exist" questions go straight to `list_areas`, skipping fuzzy-search and the Zeroisation workflow entirely), `<execution_workflow>` (fuzzy-search → validate → decide scope → confirm → execute → complete, in that order).
 
 ## Notes
 
-<<<<<<< HEAD
-- In-memory storage (data lost on restart, including logged-in identity —
-  refreshing the page returns to the login form)
-- Agent's `allowedTools` is restricted to the 5 stock-operation MCP tools
-  (`validate_area`, `validate_product`, `get_stock`, `create_zeroization`,
-  `create_area_zeroization`) — no Bash/Read/Write/file/web access, unlike
-  the original demo scaffold this was built from
-- Uses Vite for frontend development with hot reload
-- Backend uses `tsx` for TypeScript execution in dev; the Docker image
-  compiles the server with `tsc` and runs plain `node dist/main.js`
-  instead (`server/package.json`'s `build`/`start` scripts)
-=======
 - Model is `claude-sonnet-5`, `maxTurns: 100`, `settingSources: []` (no `.claude/settings` merged into the agent's own config — this repo's own `.claude/` dir is for Claude Code the tool, not the agent-under-test).
 - In-memory storage everywhere (`chatStore`, `session-registry`) — all chats, messages, and logged-in identity are lost on server restart; refreshing the page returns to the login form.
-- `scratch/` (`plan.md`, `scratch.md`) holds working notes, not part of the app.
+- `scratch/` holds working notes (`plan.md`, `scratch.md`, `frontend-refinement/`), not part of the app.
 - Vite dev server proxies `/api` and `/ws` to `:3001` (`vite.config.ts`) — in dev, always hit `:5173`, not `:3001` directly, or the proxy doesn't apply.
->>>>>>> 851c577f6e86349b3a33b6ade14500f537fe81dd
+- Backend uses `tsx` for TypeScript execution in dev; the Docker image compiles the server with `tsc` (`outDir: dist`) and runs plain `node dist/main.js` instead (`server/package.json`'s `build`/`start` scripts).
