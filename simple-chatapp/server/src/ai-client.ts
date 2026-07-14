@@ -151,23 +151,14 @@ export class AgentSession {
             type: "sse",
             url: `http://${MCP_HOST}/validation`,
             headers: {
-              ...(identity ? {
-                "x-session-token": identity.token,
-                "x-session-store-id": identity.storeId,
-                "x-session-employee-id": identity.employeeId,
-              } : {})
+              ...(identity ? { "x-session-token": identity.token } : {})
             },
           },
           "stock-mcp": {
             type: "sse",
             url: `http://${MCP_HOST}/stock`,
             headers: {
-              ...(identity ? {
-                "x-session-token": identity.token,
-                "x-session-store-id": identity.storeId,
-                "x-session-employee-id": identity.employeeId,
-                "x-session-employee-role": identity.role,
-              } : {})
+              ...(identity ? { "x-session-token": identity.token } : {})
             },
           },
         },
