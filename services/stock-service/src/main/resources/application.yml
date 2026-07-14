@@ -4,3 +4,7 @@ server:
 spring:
   application:
     name: stock-service
+
+auth:
+  service:
+    url: http://localhost:8081
