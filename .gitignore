@@ -1,6 +1,7 @@
 # OS
 .DS_Store
 Thumbs.db
+.vscode/
 
 # Logs
 *.log
@@ -26,3 +27,4 @@ notes/
 .specify
 .claude
 scratch/
+todo.md
