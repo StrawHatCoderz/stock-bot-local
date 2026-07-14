@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
-import type { Chat, ChatMessage, LoginIdentity } from "./types.js";
+import type { Chat, ChatMessage, LoginIdentity } from "../types.js";
 
-class ChatStore {
+export class ChatStore {
   private chats: Map<string, Chat> = new Map();
   private messages: Map<string, ChatMessage[]> = new Map();
 
@@ -49,12 +49,10 @@ class ChatStore {
     };
     messages.push(newMessage);
 
-    // Update chat's updatedAt
     const chat = this.chats.get(chatId);
     if (chat) {
       chat.updatedAt = newMessage.timestamp;
 
-      // Auto-generate title from first user message if still "New Chat"
       if (chat.title === "New Chat" && message.role === "user") {
         chat.title = message.content.slice(0, 50) + (message.content.length > 50 ? "..." : "");
       }

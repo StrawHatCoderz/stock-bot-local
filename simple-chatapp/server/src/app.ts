@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import type { LoginIdentity } from "./types.js";
-import { chatStore } from "./chat-store.js";
+import { chatStore } from "./models/chat-store.js";
 import { sessions } from "./session-registry.js";
 
 const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://localhost:8080";

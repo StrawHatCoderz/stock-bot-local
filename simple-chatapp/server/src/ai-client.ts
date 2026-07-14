@@ -1,22 +1,21 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { LoginIdentity } from "./types.js";
 
 // The MCP server lives in a sibling top-level directory (../../mcp relative
 // to this file), built separately (`npm run build` in mcp/) — see
 // ../../mcp/README.md.
 // We use SSE for the HTTP server
-const MCP_HOST = process.env.MCP_HOST || "localhost:3000";
+export const MCP_HOST = process.env.MCP_HOST || "localhost:3000";
 
 // Base URL for the real Auth/Validation/Stock backend the MCP server
 // proxies to (e.g. the nginx gateway from services/docker-compose.yml).
-const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://localhost:8080";
+export const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://localhost:8080";
 
 // Only these stock-operation tools are exposed to the agent.
 // authenticate_user/get_user_details exist on the MCP server too, but login
 // already happened server-side before this session is ever created — the
 // agent has no reason to call them, and letting it try would just confuse
 // the "already logged in" story below.
-const ALLOWED_MCP_TOOLS = [
+export const ALLOWED_MCP_TOOLS = [
   "mcp__validation-mcp__search_areas_fuzzy",
   "mcp__validation-mcp__search_products_fuzzy",
   "mcp__validation-mcp__validate_area",
@@ -27,7 +26,7 @@ const ALLOWED_MCP_TOOLS = [
   "mcp__stock-mcp__create_area_zeroization",
 ];
 
-function buildSystemPrompt(identity: LoginIdentity | undefined): string {
+export function buildSystemPrompt(identity: LoginIdentity | undefined): string {
   const identityBlock = identity
     ? `<authentication_status>
 You are already logged in for this conversation. Your internal Context Wrapper automatically attaches your store assignment and identity to every API request. Your role is ${identity.role}.
@@ -87,110 +86,7 @@ When processing a Zeroisation request, follow these steps strictly:
 </execution_workflow>`;
 }
 
-type UserMessage = {
+export type UserMessage = {
   type: "user";
   message: { role: "user"; content: string };
 };
-
-// Simple async queue - messages go in via push(), come out via async iteration
-class MessageQueue {
-  private messages: UserMessage[] = [];
-  private waiting: ((msg: UserMessage) => void) | null = null;
-  private closed = false;
-
-  push(content: string) {
-    const msg: UserMessage = {
-      type: "user",
-      message: {
-        role: "user",
-        content,
-      },
-    };
-
-    if (this.waiting) {
-      this.waiting(msg);
-      this.waiting = null;
-    } else {
-      this.messages.push(msg);
-    }
-  }
-
-  async *[Symbol.asyncIterator](): AsyncIterableIterator<UserMessage> {
-    while (!this.closed) {
-      if (this.messages.length > 0) {
-        yield this.messages.shift()!;
-      } else {
-        yield await new Promise<UserMessage>((resolve) => {
-          this.waiting = resolve;
-        });
-      }
-    }
-  }
-
-  close() {
-    this.closed = true;
-  }
-}
-
-export class AgentSession {
-  private queue = new MessageQueue();
-  private outputIterator: AsyncIterator<any> | null = null;
-
-  constructor(identity?: LoginIdentity) {
-    // Cast to any - SDK accepts simpler message format at runtime
-    this.outputIterator = query({
-      prompt: this.queue as any,
-      options: {
-        maxTurns: 100,
-        model: "claude-sonnet-5",
-        allowedTools: ALLOWED_MCP_TOOLS,
-        systemPrompt: buildSystemPrompt(identity),
-        settingSources: [],
-        mcpServers: {
-          "validation-mcp": {
-            type: "sse",
-            url: `http://${MCP_HOST}/validation`,
-            headers: {
-              ...(identity ? {
-                "x-session-token": identity.token,
-                "x-session-store-id": identity.storeId,
-                "x-session-employee-id": identity.employeeId,
-              } : {})
-            },
-          },
-          "stock-mcp": {
-            type: "sse",
-            url: `http://${MCP_HOST}/stock`,
-            headers: {
-              ...(identity ? {
-                "x-session-token": identity.token,
-                "x-session-store-id": identity.storeId,
-                "x-session-employee-id": identity.employeeId,
-                "x-session-employee-role": identity.role,
-              } : {})
-            },
-          },
-        },
-      },
-    })[Symbol.asyncIterator]();
-  }
-
-  sendMessage(content: string) {
-    this.queue.push(content);
-  }
-
-  async *getOutputStream() {
-    if (!this.outputIterator) {
-      throw new Error("Session not initialized");
-    }
-    while (true) {
-      const { value, done } = await this.outputIterator.next();
-      if (done) break;
-      yield value;
-    }
-  }
-
-  close() {
-    this.queue.close();
-  }
-}

@@ -1,4 +1,4 @@
-import { Session } from "./session.js";
+import { Session } from "./models/session.js";
 
 export const sessions: Map<string, Session> = new Map();
 

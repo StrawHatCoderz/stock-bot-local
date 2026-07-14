@@ -1,8 +1,7 @@
-import type { WSClient } from "./types.js";
-import { AgentSession } from "./ai-client.js";
+import type { WSClient } from "../types.js";
+import { AgentSession } from "./agent-session.js";
 import { chatStore } from "./chat-store.js";
 
-// Session manages a single chat conversation with a long-lived agent
 export class Session {
   public readonly chatId: string;
   private subscribers: Set<WSClient> = new Set();
@@ -11,8 +10,6 @@ export class Session {
 
   constructor(chatId: string) {
     this.chatId = chatId;
-    // Identity comes from the chat record, set once at POST /api/chats time
-    // from the login response — not re-derived here.
     const identity = chatStore.getChat(chatId)?.identity;
     this.agentSession = new AgentSession(identity);
   }
@@ -43,7 +40,6 @@ export class Session {
       chatId: this.chatId,
     });
 
-    // Send to agent first (this starts the session if needed)
     this.agentSession.sendMessage(content);
 
     if (!this.isListening) {

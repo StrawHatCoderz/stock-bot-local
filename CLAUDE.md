@@ -75,7 +75,7 @@ Browser (React/Vite :5173)
     ↕ REST + WebSocket
 Express server (:3001, server/main.ts → src/app.ts + src/ws-server.ts)
     ├── POST /api/auth/login → calls Java auth-service directly (not via agent)
-    └── WebSocket → AgentSession (Claude Agent SDK, src/ai-client.ts)
+    └── WebSocket → AgentSession (Claude Agent SDK, src/models/agent-session.ts)
                         ↕ SSE (2 MCP clients, headers carry identity per-request)
                     mcp/src/index.ts (Express, PORT default 3000)
                         ├── GET/POST /validation → validation-mcp
@@ -89,13 +89,13 @@ Express server (:3001, server/main.ts → src/app.ts + src/ws-server.ts)
 
 ### Key design decisions
 
-**Login is server-side, not agent-driven.** `server/src/app.ts` calls `POST /api/login` + `GET /api/me` directly and returns the resulting `LoginIdentity` (`token`, `employeeId`, `storeId`, `role`, `name`, etc.) to the client, which sends it with every `POST /api/chats` call. `chat-store.ts` persists it on the `Chat` record; `session.ts` reads it back to construct that chat's `AgentSession`. The agent never sees credentials and never calls `authenticate_user`/`get_user_details` (those tools exist on the MCP server but are excluded from `allowedTools`).
+**Login is server-side, not agent-driven.** `server/src/app.ts` calls `POST /api/login` + `GET /api/me` directly and returns the resulting `LoginIdentity` (`token`, `employeeId`, `storeId`, `role`, `name`, etc.) to the client, which sends it with every `POST /api/chats` call. `models/chat-store.ts` persists it on the `Chat` record; `models/session.ts` reads it back to construct that chat's `AgentSession`. The agent never sees credentials and never calls `authenticate_user`/`get_user_details` (those tools exist on the MCP server but are excluded from `allowedTools`).
 
-**Session identity reaches the MCP server via SSE headers, not env vars or spawn args.** `ai-client.ts` passes `x-session-token` / `x-session-store-id` / `x-session-employee-id` (both servers) and `x-session-employee-role` (stock-mcp only) as headers on the SSE `mcpServers` config. `mcp/src/index.ts` reads these per-request in the `POST /validation/messages` and `POST /stock/messages` handlers and runs the tool call inside `sessionContext.run(...)` (`AsyncLocalStorage`, `mcp/src/context.ts`) — the MCP server itself is stateless across calls; identity is per-request, not per-process.
+**Session identity reaches the MCP server via SSE headers, not env vars or spawn args.** `models/agent-session.ts` passes `x-session-token` / `x-session-store-id` / `x-session-employee-id` (both servers) and `x-session-employee-role` (stock-mcp only) as headers on the SSE `mcpServers` config. `mcp/src/index.ts` reads these per-request in the `POST /validation/messages` and `POST /stock/messages` handlers and runs the tool call inside `sessionContext.run(...)` (`AsyncLocalStorage`, `mcp/src/context.ts`) — the MCP server itself is stateless across calls; identity is per-request, not per-process.
 
 **RBAC: only the two zeroisation-write tools are role-gated.** `create_zeroization` and `create_area_zeroization` (in `mcp-server-stock.ts`) call `getSessionRole()` and immediately return a `FORBIDDEN_ROLE` business-failure JSON if `role !== "STORE_MANAGER"`, before ever calling the backend. Read-only tools (`get_stock`, everything on validation-mcp) are not gated.
 
-**Agent model:** `claude-sonnet-5` (set in `simple-chatapp/server/src/ai-client.ts`).
+**Agent model:** `claude-sonnet-5` (set in `simple-chatapp/server/src/models/agent-session.ts`).
 
 **Allowed tools** (`ALLOWED_MCP_TOOLS` in `ai-client.ts`, 8 total): `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product`, `list_areas` (validation-mcp) and `get_stock`, `create_zeroization`, `create_area_zeroization` (stock-mcp). `list_areas` returns every area in the caller's store with no params — for "what areas exist" questions, bypassing fuzzy-search-then-validate.
 

@@ -1,7 +1,7 @@
 import type { Server } from "http";
 import { WebSocketServer } from "ws";
 import type { WSClient, IncomingWSMessage } from "./types.js";
-import { chatStore } from "./chat-store.js";
+import { chatStore } from "./models/chat-store.js";
 import { sessions, getOrCreateSession } from "./session-registry.js";
 
 export function createWsServer(server: Server) {

@@ -36,7 +36,7 @@ Visit http://localhost:5173 and log in with a seeded store-manager account (e.g.
 
 - **Frontend**: React + Vite + Tailwind CSS
 - **Backend**: Node.js + Express + WebSocket (ws)
-- **Agent**: Claude Agent SDK integrated directly on the server, connecting to `../mcp/` over SSE (`server/src/ai-client.ts`) — see "Identity flow" below
+- **Agent**: Claude Agent SDK integrated directly on the server, connecting to `../mcp/` over SSE (`server/src/models/agent-session.ts`) — see "Identity flow" below
 - **Login**: a direct server-side call to the real Auth service
   (`POST /api/login` + `GET /api/me`), not something the agent negotiates —
   see "Identity flow" below
@@ -50,28 +50,31 @@ server/main.ts  →  createApp() [src/app.ts]   +  createWsServer() [src/ws-serv
                         │                              │
                         │                    src/session-registry.ts (chatId -> Session map)
                         │                              ↓
-                        │                    src/session.ts (Session: one per chat, owns an AgentSession)
+                        │                    src/models/session.ts (Session: one per chat, owns an AgentSession)
                         │                              ↓
-                        │                    src/ai-client.ts (AgentSession: Claude Agent SDK `query()`)
+                        │                    src/models/agent-session.ts (AgentSession: Claude Agent SDK `query()`)
                         │                              ↕ SSE, 2 MCP servers, identity via headers
                         │                          ../mcp/ (validation-mcp, stock-mcp)
                         ↓
-                src/chat-store.ts (in-memory chats + messages, holds identity per chat)
+                src/models/chat-store.ts (in-memory chats + messages, holds identity per chat)
 ```
+
+Classes (`Session`, `AgentSession`, `MessageQueue`, `ChatStore`) live one-per-file under `src/models/`; `src/ai-client.ts` itself is no longer a class file — it now only holds the `AgentSession`-adjacent config/prompt helpers (`MCP_HOST`, `ALLOWED_MCP_TOOLS`, `buildSystemPrompt`, the `UserMessage` type) that `models/agent-session.ts` and `models/message-queue.ts` import.
 
 - **`server/main.ts`** is the entrypoint (what `npm run dev`/`start`/Dockerfile actually run). It just wires `createApp()` + `createWsServer()` onto one `http.Server` and starts listening.
 - **`src/app.ts`** — Express REST routes only (`/api/auth/login`, `/api/chats*`), plus static file serving for the built client in production.
 - **`src/ws-server.ts`** — WebSocket connection handling (`subscribe`/`chat` message types) and a 30s ping/pong heartbeat that terminates dead connections.
 - **`src/session-registry.ts`** — the shared `chatId -> Session` map, split out so both `ws-server.ts` and any future REST route can reach live sessions (e.g. `app.ts`'s `DELETE /api/chats/:id` closes the session via this map).
-- **`src/session.ts`** (`Session`) — one per chat; owns exactly one `AgentSession`, subscribes/broadcasts to WebSocket clients, and persists messages via `chatStore`. `handleSDKMessage` dispatches SDK stream events (`assistant`/`result`) down through per-block handlers (`handleAssistantMessage` → `handleAssistantBlock` → text vs `tool_use`).
-- **`src/ai-client.ts`** (`AgentSession`) — wraps the Claude Agent SDK's `query()`. Takes user input through a custom `MessageQueue` (push-based async iterator, since the SDK expects an async-iterable prompt for multi-turn streaming) and exposes an output stream the `Session` consumes.
-- **`src/chat-store.ts`** — in-memory `Map`-backed store for chats and messages; each `Chat` carries the `LoginIdentity` it was created with.
+- **`src/models/session.ts`** (`Session`) — one per chat; owns exactly one `AgentSession`, subscribes/broadcasts to WebSocket clients, and persists messages via `chatStore`. `handleSDKMessage` dispatches SDK stream events (`assistant`/`result`) down through per-block handlers (`handleAssistantMessage` → `handleAssistantBlock` → text vs `tool_use`).
+- **`src/models/agent-session.ts`** (`AgentSession`) — wraps the Claude Agent SDK's `query()`. Takes user input through `models/message-queue.ts`'s `MessageQueue` (push-based async iterator, since the SDK expects an async-iterable prompt for multi-turn streaming) and exposes an output stream the `Session` consumes. Imports `MCP_HOST`/`ALLOWED_MCP_TOOLS`/`buildSystemPrompt` from `ai-client.ts`.
+- **`src/ai-client.ts`** — no longer a class file. Holds the `AgentSession`-adjacent config/prompt-building helpers: `MCP_HOST`, `ALLOWED_MCP_TOOLS`, `buildSystemPrompt()`, and the `UserMessage` type consumed by `models/message-queue.ts`.
+- **`src/models/chat-store.ts`** — in-memory `Map`-backed store for chats and messages; each `Chat` carries the `LoginIdentity` it was created with.
 
 ### Identity flow (read `../CLAUDE.md`'s "Key design decisions" first)
 
 Login never touches the agent. `POST /api/auth/login` in `app.ts` calls the real Auth service (`POST /api/login` then `GET /api/me`) directly and returns a `LoginIdentity`. The client holds it in React state (`App.tsx`) and sends it as `{ identity }` in every `POST /api/chats` body; `chatStore.createChat` stores it on the `Chat` record; `Session`'s constructor reads it back (`chatStore.getChat(chatId)?.identity`) to build that chat's `AgentSession`.
 
-`AgentSession` (`ai-client.ts`) does two things with identity:
+`AgentSession` (`models/agent-session.ts`) does two things with identity:
 1. Bakes it into the system prompt as plain facts (role, "already logged in") via `buildSystemPrompt()`.
 2. Passes it as **SSE headers** on the `mcpServers` config — `x-session-token` / `x-session-store-id` / `x-session-employee-id` on both `validation-mcp` and `stock-mcp`, plus `x-session-employee-role` on `stock-mcp` only (needed for the `create_zeroization`/`create_area_zeroization` RBAC check on the MCP server side). This is **not** stdio and **not** env vars — both MCP servers are registered with `type: "sse"` pointing at `http://${MCP_HOST}/validation` and `/stock`.
 
