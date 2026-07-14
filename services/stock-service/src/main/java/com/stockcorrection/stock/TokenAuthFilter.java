@@ -67,8 +67,14 @@ public class TokenAuthFilter implements Filter {
             return;
         }
 
+        Object storeId = identity.get("storeId");
+        if (storeId == null) {
+            httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
+
         httpRequest.setAttribute(ATTR_EMPLOYEE_ID, identity.get("employeeId"));
-        httpRequest.setAttribute(ATTR_STORE_ID, identity.get("storeId"));
+        httpRequest.setAttribute(ATTR_STORE_ID, storeId);
         httpRequest.setAttribute(ATTR_ROLE, identity.get("role"));
 
         chain.doFilter(request, response);
