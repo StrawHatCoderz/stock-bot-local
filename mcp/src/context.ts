@@ -6,4 +6,4 @@ export interface SessionContext {
 
 export const sessionContext = new AsyncLocalStorage<SessionContext>();
 
-export const getSessionToken = () => sessionContext.getStore()?.token || process.env.SESSION_TOKEN;
+export const getSessionToken = () => sessionContext.getStore()?.token;
