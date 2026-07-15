@@ -1,7 +1,6 @@
 # OS
 .DS_Store
 Thumbs.db
-.vscode/
 
 # Logs
 *.log
@@ -21,6 +20,7 @@ out/
 
 # Editor
 .idea/
+.vscode/
 
 # Tooling / scratch
 notes/
@@ -28,5 +28,5 @@ notes/
 .claude
 scratch/
 todo.md
-.specify
+.superpowers
 docs
