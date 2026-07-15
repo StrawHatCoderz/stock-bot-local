@@ -136,5 +136,55 @@ export const createStockMCPServer = (options: {
     },
   );
 
+  server.registerTool(
+    "create_adjustment",
+    {
+      title: "Create Stock Adjustment",
+      description:
+        "Reduce the stock of a single product in a single area by a partial amount — for a " +
+        "correction that leaves some quantity behind, unlike create_zeroization which always " +
+        "zeroes out the product. `requestedQuantity` is the amount to remove, stated by the " +
+        "user; confirm it does not exceed the `availableQuantity` just read from get_stock " +
+        "before calling this — the server re-validates this regardless and will reject the " +
+        "call otherwise. `reason` is a fixed code (e.g. DAMAGED) that you map from whatever " +
+        "the user actually said caused the loss; `remarks` should carry the user's original " +
+        "free-text explanation so nothing is lost in that mapping. " +
+        "Always confirm the product, current quantity, requested reduction, and resulting " +
+        "quantity with the user before calling this — it is a destructive, auditable action.",
+      inputSchema: {
+        areaId: z.string(),
+        productId: z.string(),
+        requestedQuantity: z
+          .number()
+          .describe(
+            "The amount to remove, stated by the user — not required to equal the full " +
+              "availableQuantity from get_stock (use create_zeroization for a full write-off).",
+          ),
+        reason: z
+          .string()
+          .describe(
+            "A fixed reason code mapped from the user's stated cause, e.g. DAMAGED.",
+          ),
+        remarks: z
+          .string()
+          .describe(
+            "The user's original free-text explanation of what happened.",
+          ),
+      },
+    },
+    async ({ areaId, productId, requestedQuantity, reason, remarks }) => {
+      try {
+        const token = getSessionToken();
+        const result = await callApi("POST", "/api/stock/adjustment", {
+          token,
+          body: { areaId, productId, requestedQuantity, reason, remarks },
+        });
+        return apiResultToToolResult(result);
+      } catch (err) {
+        return errorToToolResult(err);
+      }
+    },
+  );
+
   return server;
 };

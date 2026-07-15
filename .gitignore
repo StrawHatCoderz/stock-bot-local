@@ -29,4 +29,7 @@ notes/
 scratch/
 todo.md
 .superpowers
+.specify
 docs
+.env
+specs
