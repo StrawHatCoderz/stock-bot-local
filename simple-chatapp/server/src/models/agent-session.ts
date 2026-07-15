@@ -1,6 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { LoginIdentity } from "../types.js";
-import { MCP_HOST, ALLOWED_MCP_TOOLS, buildSystemPrompt } from "../ai-client.js";
+import { MCP_HOST, getAllowedToolsForRole, buildSystemPrompt } from "../ai-client.js";
 import { MessageQueue } from "./message-queue.js";
 
 export class AgentSession {
@@ -13,7 +13,7 @@ export class AgentSession {
       options: {
         maxTurns: 100,
         model: "claude-sonnet-5",
-        allowedTools: ALLOWED_MCP_TOOLS,
+        allowedTools: getAllowedToolsForRole(identity?.role),
         systemPrompt: buildSystemPrompt(identity),
         settingSources: [],
         mcpServers: {

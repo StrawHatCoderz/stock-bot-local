@@ -15,16 +15,32 @@ export const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://loca
 // already happened server-side before this session is ever created — the
 // agent has no reason to call them, and letting it try would just confuse
 // the "already logged in" story below.
-export const ALLOWED_MCP_TOOLS = [
+const READ_ONLY_MCP_TOOLS = [
   "mcp__validation-mcp__search_areas_fuzzy",
   "mcp__validation-mcp__search_products_fuzzy",
   "mcp__validation-mcp__validate_area",
   "mcp__validation-mcp__validate_product",
   "mcp__validation-mcp__list_areas",
   "mcp__stock-mcp__get_stock",
+];
+
+// create_zeroization/create_area_zeroization are write operations gated to
+// STORE_MANAGER only. This is a hard gate, not a prompt instruction: for any
+// other role (or no identity at all) these two tools are omitted from
+// allowedTools, so the SDK cannot invoke them regardless of what the model
+// decides. This is in addition to — not a replacement for — the
+// FORBIDDEN_ROLE check in StockController.java, which remains the real
+// security boundary.
+const WRITE_MCP_TOOLS = [
   "mcp__stock-mcp__create_zeroization",
   "mcp__stock-mcp__create_area_zeroization",
 ];
+
+export const ALLOWED_MCP_TOOLS = [...READ_ONLY_MCP_TOOLS, ...WRITE_MCP_TOOLS];
+
+export function getAllowedToolsForRole(role: string | undefined): string[] {
+  return role === "STORE_MANAGER" ? ALLOWED_MCP_TOOLS : READ_ONLY_MCP_TOOLS;
+}
 
 export function buildSystemPrompt(identity: LoginIdentity | undefined): string {
   const identityBlock = identity
@@ -47,12 +63,15 @@ ${identityBlock}
 2. **Authentication:** Never ask the user for passwords, tokens, or employee IDs. The system handles authentication entirely outside your context.
 3. **Rate Limiting / Abuse:** Do not perform unbounded or infinite loops of tool calls. If an API request fails repeatedly or the user seems to be guessing maliciously, stop making tool calls and ask the user to clarify. Limit tool calls to what is strictly necessary.
 4. **Destructive Actions:** Zeroisation is a destructive, auditable action. Never call \`create_zeroization\` or \`create_area_zeroization\` without first presenting a clear summary of what will be destroyed and receiving explicit, final confirmation from the user.
-5. **Role Restrictions:** \`create_zeroization\` and \`create_area_zeroization\` will return a \`FORBIDDEN_ROLE\` business failure if you are not a store manager. If that happens, relay a polite refusal (e.g. "Sorry, only store managers can perform zeroisation") — do not retry the call or attempt any workaround.
+5. **Role Restrictions (defensive fallback):** For STORE_MANAGER sessions, \`create_zeroization\`/\`create_area_zeroization\` can still return a \`FORBIDDEN_ROLE\` business failure in rare cases (e.g. a role change takes effect mid-conversation) even though the tools are available to you. If that happens, relay a polite refusal (e.g. "Sorry, only store managers can perform zeroisation") and do not retry the call or attempt any workaround. Non-manager sessions should never reach this point at all — see the Role Check Before Execution rule in \`<intent_classification>\`.
 </security_guardrails>
 
 <intent_classification>
 Your primary capability is **Zeroisation** (writing off damaged, expired, or spoiled stock).
 If the user's intent is outside this capability (e.g., Transferring stock to another store, Waste Adjustments for partial non-zero quantities, or checking shifts), politely inform them that you can only assist with Zeroisation. Do not attempt to use tools to solve unsupported intents.
+
+**Role Check Before Execution:** Zeroisation has two kinds of intent: *browsing/checking* (e.g. "what's the stock of milk in Fridge 2?", "what areas are in my store?") and *executing* (the user wants to actually write off/zero out stock). Browsing and checking are allowed for every role — never refuse or gate \`list_areas\`, \`search_areas_fuzzy\`, \`search_products_fuzzy\`, \`validate_area\`, \`validate_product\`, or \`get_stock\` based on role.
+However, as soon as you recognize the user's intent is to *execute* a zeroisation — check your role from \`<authentication_status>\` above BEFORE calling any tool. If your role is not STORE_MANAGER, immediately decline in your very first response, e.g.: "Sorry, only store managers can perform zeroisation. I can still help you check stock or browse areas if that's useful." Do not call \`search_areas_fuzzy\`, \`validate_area\`, \`get_stock\`, or any other tool first — the decision must be made from intent alone, before starting the workflow in \`<execution_workflow>\` below. If the user goes on to ask a browsing/checking question instead, answer it normally using the read-only tools.
 
 **Context Switching:** If the user changes their mind mid-task (e.g., they start zeroing eggs but suddenly ask to zero milk instead), immediately abandon the current state and focus on the new intent.
 </intent_classification>
