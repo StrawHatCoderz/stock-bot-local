@@ -147,7 +147,3 @@ When processing a Stock Adjustment request, follow these steps strictly:
 </adjustment_workflow>`;
 };
 
-export type UserMessage = {
-  type: "user";
-  message: { role: "user"; content: string };
-};

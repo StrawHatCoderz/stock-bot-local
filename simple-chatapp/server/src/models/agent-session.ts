@@ -5,10 +5,10 @@ import { MessageQueue } from "./message-queue.js";
 
 export class AgentSession {
   private queue = new MessageQueue();
-  private outputIterator: AsyncIterator<any> | null = null;
+  private outputStream: AsyncIterable<any> | null = null;
 
   constructor(identity?: LoginIdentity) {
-    this.outputIterator = query({
+    this.outputStream = query({
       prompt: this.queue as any,
       options: {
         maxTurns: 100,
@@ -33,7 +33,7 @@ export class AgentSession {
           },
         },
       },
-    })[Symbol.asyncIterator]();
+    });
   }
 
   sendMessage(content: string) {
@@ -41,12 +41,7 @@ export class AgentSession {
   }
 
   async *getOutputStream() {
-    if (!this.outputIterator) {
-      throw new Error("Session not initialized");
-    }
-    while (true) {
-      const { value, done } = await this.outputIterator.next();
-      if (done) break;
+    for await (const value of this.outputStream!) {
       yield value;
     }
   }

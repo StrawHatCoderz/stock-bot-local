@@ -2,7 +2,6 @@ import type { WebSocket } from "ws";
 
 // WebSocket client with session data
 export interface WSClient extends WebSocket {
-  sessionId?: string;
   isAlive?: boolean;
 }
 
@@ -51,3 +50,8 @@ export interface WSSubscribeMessage {
 }
 
 export type IncomingWSMessage = WSChatMessage | WSSubscribeMessage;
+
+export type UserMessage = {
+  type: "user";
+  message: { role: "user"; content: string };
+};
