@@ -4,10 +4,11 @@ import path from "path";
 import type { LoginIdentity } from "./types.js";
 import { chatStore } from "./models/chat-store.js";
 import { sessions } from "./session-registry.js";
+import { apiGet, apiPost } from "./utils/apiUtils.js";
 
 const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://localhost:8080";
 
-export function createApp() {
+export const createApp = () => {
   const app = express();
   app.use(cors());
   app.use(express.json());
@@ -26,26 +27,23 @@ export function createApp() {
     }
 
     try {
-      const loginRes = await fetch(`${STOCK_API_BASE_URL}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      const loginBody: any = await loginRes.json().catch(() => ({}));
+      const loginBody: any = await apiPost(`${STOCK_API_BASE_URL}/api/login`, {
+        username,
+        password,
+      }).catch(() => ({}));
 
-      if (!loginRes.ok || !loginBody.token) {
+      if (!loginBody.token) {
         return res.status(401).json({
           error: loginBody.message || "Invalid username or password.",
           errorCode: loginBody.errorCode,
         });
       }
 
-      const meRes = await fetch(`${STOCK_API_BASE_URL}/api/me`, {
-        headers: { Authorization: `Bearer ${loginBody.token}` },
-      });
-      const meBody: any = await meRes.json().catch(() => ({}));
+      const meBody: any = await apiGet(`${STOCK_API_BASE_URL}/api/me`, {
+        Authorization: `Bearer ${loginBody.token}`,
+      }).catch(() => ({}));
 
-      if (!meRes.ok || !meBody.authorized) {
+      if (!meBody.authorized) {
         return res.status(403).json({
           error: meBody.message || "Not authorized as a store manager.",
           errorCode: meBody.errorCode,
@@ -106,4 +104,4 @@ export function createApp() {
   });
 
   return app;
-}
+};

@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { callApi } from "./httpClient.js";
-import { apiResultToToolResult, errorToToolResult } from "./toolResult.js";
+import { callApi } from "./http-client.js";
+import { apiResultToToolResult, errorToToolResult } from "./tool-result.js";
 import { getSessionToken } from "./context.js";
 
 export const createStockMCPServer = (options: {

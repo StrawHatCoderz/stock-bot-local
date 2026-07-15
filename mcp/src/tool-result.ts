@@ -1,5 +1,5 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { ApiResult, ApiTransportError } from "./httpClient.js";
+import { ApiResult, ApiTransportError } from "./http-client.js";
 
 export type ToolResult = CallToolResult;
 

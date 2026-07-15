@@ -50,7 +50,7 @@ export const ALLOWED_MCP_TOOLS = [
   ...ADJUSTMENT_MCP_TOOLS,
 ];
 
-export function getAllowedToolsForRole(role: string | undefined): string[] {
+export const getAllowedToolsForRole = (role: string | undefined): string[] => {
   if (role === "STORE_MANAGER") {
     return ALLOWED_MCP_TOOLS;
   }
@@ -58,9 +58,9 @@ export function getAllowedToolsForRole(role: string | undefined): string[] {
     return [...READ_ONLY_MCP_TOOLS, ...ADJUSTMENT_MCP_TOOLS];
   }
   return READ_ONLY_MCP_TOOLS;
-}
+};
 
-export function buildSystemPrompt(identity: LoginIdentity | undefined): string {
+export const buildSystemPrompt = (identity: LoginIdentity | undefined): string => {
   const identityBlock = identity
     ? `<authentication_status>
 You are already logged in for this conversation. Your internal Context Wrapper automatically attaches your store assignment and identity to every API request. Your role is ${identity.role}.
@@ -145,7 +145,7 @@ When processing a Stock Adjustment request, follow these steps strictly:
 7. **Execute:** Call \`create_adjustment\` with the confirmed \`requestedQuantity\`. Map the user's reason to a consistent code (e.g. DAMAGED).
 8. **Complete:** Inform the user of the success and provide the confirmation id.
 </adjustment_workflow>`;
-}
+};
 
 export type UserMessage = {
   type: "user";

@@ -4,7 +4,7 @@ import type { WSClient, IncomingWSMessage } from "./types.js";
 import { chatStore } from "./models/chat-store.js";
 import { sessions, getOrCreateSession } from "./session-registry.js";
 
-export function createWsServer(server: Server) {
+export const createWsServer = (server: Server) => {
   const wss = new WebSocketServer({ server, path: "/ws" });
 
   wss.on("connection", (ws: WSClient) => {
@@ -78,4 +78,4 @@ export function createWsServer(server: Server) {
   });
 
   return wss;
-}
+};
