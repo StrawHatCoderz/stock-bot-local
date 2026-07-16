@@ -110,7 +110,6 @@ export class Session {
 
   subscribe(client: WSClient) {
     this.subscribers.add(client);
-    client.sessionId = this.chatId;
   }
 
   unsubscribe(client: WSClient) {

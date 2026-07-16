@@ -1,4 +1,4 @@
-import type { UserMessage } from "../ai-client.js";
+import type { UserMessage } from "../types.js";
 
 export class MessageQueue {
   private messages: UserMessage[] = [];

@@ -24,11 +24,15 @@ public class StockController {
     // Seeded to match the example IDs in api-contract.md, then incrementing.
     private final AtomicInteger zeroizationSeq = new AtomicInteger(90001);
     private final AtomicInteger transactionSeq = new AtomicInteger(88292);
+    private final AtomicInteger adjustmentSeq = new AtomicInteger(70001);
 
     record ZeroizationRequest(
             String areaId, String productId, long quantity, String reason, String remarks) {}
 
     record AreaZeroizationRequest(String areaId, String reason, String remarks) {}
+
+    record AdjustmentRequest(
+            String areaId, String productId, long requestedQuantity, String reason, String remarks) {}
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> getStock(
@@ -136,6 +140,42 @@ public class StockController {
         return ResponseEntity.ok(body);
     }
 
+    @PostMapping("/adjustment")
+    public ResponseEntity<Map<String, Object>> createAdjustment(
+            @RequestBody AdjustmentRequest request,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+        if (!"STORE_MANAGER".equals(role) && !"STORE_ASSOCIATE".equals(role)) {
+            return ResponseEntity.ok(adjustmentForbiddenRoleBody());
+        }
+
+        MockStockData.StockItem item = MockStockData.find(storeId, request.areaId(), request.productId());
+
+        if (item == null) {
+            return ResponseEntity.ok(adjustmentFailedBody());
+        }
+
+        long resultingQuantity = item.quantity - request.requestedQuantity();
+
+        if (resultingQuantity < 0) {
+            return ResponseEntity.ok(adjustmentExceedsAvailableBody());
+        }
+
+        if (resultingQuantity == 0 && "STORE_ASSOCIATE".equals(role)) {
+            return ResponseEntity.ok(zeroAdjustmentRequiresManagerBody());
+        }
+
+        item.quantity = resultingQuantity;
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("adjustmentId", "ADJ-" + adjustmentSeq.getAndIncrement());
+        body.put("status", "SUCCESS");
+        body.put("transactionId", "TXN-" + transactionSeq.getAndIncrement());
+        body.put("resultingQuantity", resultingQuantity);
+        body.put("message", "Stock adjustment applied.");
+        return ResponseEntity.ok(body);
+    }
+
     private Map<String, Object> failureBody() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", "FAILED");
@@ -149,6 +189,38 @@ public class StockController {
         body.put("status", "FAILED");
         body.put("errorCode", "FORBIDDEN_ROLE");
         body.put("message", "Only store managers can perform zeroisation.");
+        return body;
+    }
+
+    private Map<String, Object> adjustmentForbiddenRoleBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", "FAILED");
+        body.put("errorCode", "FORBIDDEN_ROLE");
+        body.put("message", "Only store managers or store associates can adjust stock.");
+        return body;
+    }
+
+    private Map<String, Object> adjustmentFailedBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", "FAILED");
+        body.put("errorCode", "ADJUSTMENT_FAILED");
+        body.put("message", "Unable to create adjustment.");
+        return body;
+    }
+
+    private Map<String, Object> zeroAdjustmentRequiresManagerBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", "FAILED");
+        body.put("errorCode", "ZERO_ADJUSTMENT_REQUIRES_MANAGER");
+        body.put("message", "Reducing stock to zero requires a store manager; ask a manager to perform a zeroisation.");
+        return body;
+    }
+
+    private Map<String, Object> adjustmentExceedsAvailableBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", "FAILED");
+        body.put("errorCode", "ADJUSTMENT_EXCEEDS_AVAILABLE");
+        body.put("message", "Requested quantity exceeds available stock.");
         return body;
     }
 }
