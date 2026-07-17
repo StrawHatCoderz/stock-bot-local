@@ -31,6 +31,7 @@ public class TokenAuthFilter implements Filter {
     public static final String ATTR_EMPLOYEE_ID = "verifiedEmployeeId";
     public static final String ATTR_STORE_ID = "verifiedStoreId";
     public static final String ATTR_ROLE = "verifiedRole";
+    public static final String ATTR_THRESHOLD = "verifiedThresholdPercent";
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -76,6 +77,10 @@ public class TokenAuthFilter implements Filter {
         httpRequest.setAttribute(ATTR_EMPLOYEE_ID, identity.get("employeeId"));
         httpRequest.setAttribute(ATTR_STORE_ID, storeId);
         httpRequest.setAttribute(ATTR_ROLE, identity.get("role"));
+        // Only present for STORE_ASSOCIATE callers (see auth-service's
+        // GET /api/auth/verify); null otherwise. Read by StockController's
+        // per-(associate, product) threshold-quota check.
+        httpRequest.setAttribute(ATTR_THRESHOLD, identity.get("thresholdPercent"));
 
         chain.doFilter(request, response);
     }

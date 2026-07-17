@@ -16,7 +16,7 @@ final class MockAuthData {
             String name,
             String email,
             String assignedTo, // storeId this employee currently manages, or null if not a manager
-            String role // STORE_MANAGER or STORE_ASSOCIATE
+            String role // STORE_MANAGER, STORE_ASSOCIATE, or ADMIN
     ) {}
 
     static final List<Employee> EMPLOYEES = List.of(
@@ -30,7 +30,15 @@ final class MockAuthData {
             // Passes the login gate (has a store assignment) but is not a
             // manager — exercises the role-based FORBIDDEN_ROLE check.
             new Employee("alex.w", "password123", "EMP-1004", "1004",
-                    "Alex W", "alex.w@example.com", "STORE-101", "STORE_ASSOCIATE")
+                    "Alex W", "alex.w@example.com", "STORE-101", "STORE_ASSOCIATE"),
+            // Second real associate, at a different store — lets the Admin
+            // roster/threshold feature demonstrate two independent associates.
+            new Employee("morgan.l", "password123", "EMP-1006", "1006",
+                    "Morgan L", "morgan.l@example.com", "STORE-102", "STORE_ASSOCIATE"),
+            // System-wide Admin — deliberately storeless (assignedTo null),
+            // unlike sam.t this is expected and must not trip UNAUTHORIZED_MANAGER.
+            new Employee("admin.a", "password123", "EMP-1005", "1005",
+                    "Admin A", "admin.a@example.com", null, "ADMIN")
     );
 
     static Employee findByUsername(String username) {

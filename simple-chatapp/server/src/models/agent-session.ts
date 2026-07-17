@@ -31,6 +31,13 @@ export class AgentSession {
               ...(identity ? { "x-session-token": identity.token } : {})
             },
           },
+          "admin-mcp": {
+            type: "sse",
+            url: `http://${MCP_HOST}/admin`,
+            headers: {
+              ...(identity ? { "x-session-token": identity.token } : {})
+            },
+          },
         },
       },
     });

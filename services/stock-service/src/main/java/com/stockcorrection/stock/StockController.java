@@ -144,7 +144,9 @@ public class StockController {
     public ResponseEntity<Map<String, Object>> createAdjustment(
             @RequestBody AdjustmentRequest request,
             @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
-            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role,
+            @RequestAttribute(value = TokenAuthFilter.ATTR_EMPLOYEE_ID, required = false) String employeeId,
+            @RequestAttribute(value = TokenAuthFilter.ATTR_THRESHOLD, required = false) Double thresholdPercent) {
         if (!"STORE_MANAGER".equals(role) && !"STORE_ASSOCIATE".equals(role)) {
             return ResponseEntity.ok(adjustmentForbiddenRoleBody());
         }
@@ -165,6 +167,16 @@ public class StockController {
             return ResponseEntity.ok(zeroAdjustmentRequiresManagerBody());
         }
 
+        if ("STORE_ASSOCIATE".equals(role)) {
+            double requestedPercent = (double) request.requestedQuantity() / item.quantity * 100;
+            Map<String, Object> thresholdFailure = checkThreshold(
+                    employeeId, request.areaId(), request.productId(), requestedPercent, thresholdPercent);
+            if (thresholdFailure != null) {
+                return ResponseEntity.ok(thresholdFailure);
+            }
+            MockAdjustmentUsage.addUsed(employeeId, request.areaId(), request.productId(), requestedPercent);
+        }
+
         item.quantity = resultingQuantity;
 
         Map<String, Object> body = new LinkedHashMap<>();
@@ -174,6 +186,35 @@ public class StockController {
         body.put("resultingQuantity", resultingQuantity);
         body.put("message", "Stock adjustment applied.");
         return ResponseEntity.ok(body);
+    }
+
+    /**
+     * Checks a Store Associate's requested reduction (already expressed as a
+     * percentage of the product's current on-hand quantity) against the
+     * remaining (unused) portion of their stock-adjustment threshold for
+     * this specific product, per specs/002-admin-role/data-model.md.
+     * Returns a failure body if the request would exceed what's remaining,
+     * or null if the request is within bounds — this method only checks; the
+     * caller is responsible for recording the usage on success.
+     */
+    private Map<String, Object> checkThreshold(
+            String employeeId, String areaId, String productId,
+            double requestedPercent, Double thresholdPercent) {
+        double ceiling = thresholdPercent != null ? thresholdPercent : 0.0;
+        double used = MockAdjustmentUsage.getUsed(employeeId, areaId, productId);
+        double remaining = Math.max(0, ceiling - used);
+
+        if (requestedPercent > remaining) {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("status", "FAILED");
+            body.put("errorCode", "ADJUSTMENT_EXCEEDS_THRESHOLD");
+            body.put("message", String.format(
+                    "This request would use %.1f%% of this product's stock, but you only have %.1f%% "
+                            + "of your adjustment threshold remaining for this product.",
+                    requestedPercent, remaining));
+            return body;
+        }
+        return null;
     }
 
     private Map<String, Object> failureBody() {

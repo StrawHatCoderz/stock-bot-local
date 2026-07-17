@@ -20,7 +20,7 @@ export interface CallApiOptions {
 }
 
 export async function callApi(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PATCH",
   path: string,
   options: CallApiOptions = {}
 ): Promise<ApiResult> {

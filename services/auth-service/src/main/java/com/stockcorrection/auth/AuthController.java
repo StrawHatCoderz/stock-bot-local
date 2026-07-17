@@ -5,9 +5,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Mock AuthAPI per phase-1/05_api-contract.md — POST /api/login, GET /api/me.
@@ -59,9 +61,11 @@ public class AuthController {
         }
 
         MockAuthData.Employee employee = MockAuthData.findByEmployeeId(employeeId);
-        if (employee == null || employee.assignedTo() == null) {
+        boolean isAdmin = employee != null && "ADMIN".equals(employee.role());
+        if (employee == null || (employee.assignedTo() == null && !isAdmin)) {
             // Per api-contract.md: valid credentials/token, but not an
-            // authorized manager for any store.
+            // authorized manager for any store. Admin is deliberately
+            // storeless (system-wide) and is exempt from this gate.
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("authorized", false);
             body.put("errorCode", "UNAUTHORIZED_MANAGER");
@@ -98,7 +102,119 @@ public class AuthController {
         body.put("employeeId", employee.employeeId());
         body.put("storeId", employee.assignedTo());
         body.put("role", employee.role());
+        if ("STORE_ASSOCIATE".equals(employee.role())) {
+            body.put("thresholdPercent", MockThresholdData.get(employee.employeeId()));
+        }
         return ResponseEntity.ok(body);
+    }
+
+    @GetMapping("/api/auth/managers")
+    public ResponseEntity<Map<String, Object>> managers(
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+
+        MockAuthData.Employee caller = resolveCaller(authorization);
+        if (caller == null || !"ADMIN".equals(caller.role())) {
+            return ResponseEntity.ok(forbiddenRoleBody("Only an Admin can list store managers."));
+        }
+
+        List<Map<String, Object>> managers = MockAuthData.EMPLOYEES.stream()
+                .filter(e -> "STORE_MANAGER".equals(e.role()))
+                .map(e -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("employeeId", e.employeeId());
+                    row.put("name", e.name());
+                    row.put("storeId", e.assignedTo());
+                    return (Map<String, Object>) row;
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("managers", managers);
+        return ResponseEntity.ok(body);
+    }
+
+    @GetMapping("/api/auth/associates")
+    public ResponseEntity<Map<String, Object>> associates(
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+
+        MockAuthData.Employee caller = resolveCaller(authorization);
+        if (caller == null || !"ADMIN".equals(caller.role())) {
+            return ResponseEntity.ok(forbiddenRoleBody("Only an Admin can list store associates."));
+        }
+
+        List<Map<String, Object>> associates = MockAuthData.EMPLOYEES.stream()
+                .filter(e -> "STORE_ASSOCIATE".equals(e.role()) && e.assignedTo() != null)
+                .map(e -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("employeeId", e.employeeId());
+                    row.put("name", e.name());
+                    row.put("storeId", e.assignedTo());
+                    row.put("thresholdPercent", MockThresholdData.get(e.employeeId()));
+                    return (Map<String, Object>) row;
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("associates", associates);
+        return ResponseEntity.ok(body);
+    }
+
+    record ThresholdRequest(Double thresholdPercent) {}
+
+    @PatchMapping("/api/auth/associates/{employeeId}/threshold")
+    public ResponseEntity<Map<String, Object>> setAssociateThreshold(
+            @PathVariable String employeeId,
+            @RequestBody ThresholdRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+
+        MockAuthData.Employee caller = resolveCaller(authorization);
+        if (caller == null || !"ADMIN".equals(caller.role())) {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("status", "FAILED");
+            body.put("errorCode", "FORBIDDEN_ROLE");
+            body.put("message", "Only an Admin can change an associate's threshold.");
+            return ResponseEntity.ok(body);
+        }
+
+        MockAuthData.Employee target = MockAuthData.findByEmployeeId(employeeId);
+        if (target == null || !"STORE_ASSOCIATE".equals(target.role())) {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("status", "FAILED");
+            body.put("errorCode", "ASSOCIATE_NOT_FOUND");
+            body.put("message", "No store associate found with that id.");
+            return ResponseEntity.ok(body);
+        }
+
+        Double thresholdPercent = request.thresholdPercent();
+        if (thresholdPercent == null || thresholdPercent < 0 || thresholdPercent > 100) {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("status", "FAILED");
+            body.put("errorCode", "INVALID_THRESHOLD");
+            body.put("message", "Threshold must be between 0 and 100.");
+            return ResponseEntity.ok(body);
+        }
+
+        MockThresholdData.set(employeeId, thresholdPercent);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", "SUCCESS");
+        body.put("employeeId", employeeId);
+        body.put("thresholdPercent", thresholdPercent);
+        body.put("message", "Threshold updated.");
+        return ResponseEntity.ok(body);
+    }
+
+    private Map<String, Object> forbiddenRoleBody(String message) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("authorized", false);
+        body.put("errorCode", "FORBIDDEN_ROLE");
+        body.put("message", message);
+        return body;
+    }
+
+    private MockAuthData.Employee resolveCaller(String authorizationHeader) {
+        String employeeId = resolveEmployeeId(authorizationHeader);
+        return employeeId == null ? null : MockAuthData.findByEmployeeId(employeeId);
     }
 
     private String resolveEmployeeId(String authorizationHeader) {
