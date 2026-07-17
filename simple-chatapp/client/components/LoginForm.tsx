@@ -53,8 +53,8 @@ export function LoginForm({ onLogin }: LoginFormProps) {
         className="w-full max-w-sm bg-white p-8 rounded-lg shadow space-y-4"
       >
         <div>
-          <h1 className="text-xl font-semibold text-gray-800">Store Manager Login</h1>
-          <p className="text-sm text-gray-500 mt-1">Sign in to report a stock issue.</p>
+          <h1 className="text-xl font-semibold text-gray-800">Hi, I'm your AI Buddy</h1>
+          <p className="text-sm text-gray-500 mt-1">Sign in and let's get started.</p>
         </div>
 
         {error && (

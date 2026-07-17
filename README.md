@@ -36,8 +36,8 @@ docker-compose up --build
 This starts auth/validation/stock/nginx-gateway (gateway on
 http://localhost:8080), `mcp` (:3000), and `chatapp` (:3001) together on one
 Docker network. Visit http://localhost:3001 and log in with a seeded
-account — a store manager (`priya.k` / `password123`), store associate
-(`alex.w` / `password123`), or admin (`admin.a` / `password123`) — see
+account — a store manager (`user001` / `password123`), store associate
+(`user004` / `password123`), or admin (`user006` / `password123`) — see
 `CLAUDE.md` for the full test-account table.
 
 For local development with hot reload, per-component commands (running

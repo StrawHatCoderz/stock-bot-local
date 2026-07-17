@@ -14,8 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 final class MockThresholdData {
 
     private static final Map<String, Double> THRESHOLDS = new ConcurrentHashMap<>(Map.of(
-            "EMP-1004", 5.0,  // alex.w
-            "EMP-1006", 12.0  // morgan.l
+            "EMP-1004", 5.0,  // user004
+            "EMP-1006", 12.0  // user005
     ));
 
     static Double get(String employeeId) {
