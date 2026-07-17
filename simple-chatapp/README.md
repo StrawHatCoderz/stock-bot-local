@@ -1,6 +1,7 @@
 # Simple Chat App
 
-A Stock Zeroisation chat assistant using the Claude Agent SDK with a React
+A Stock Correction chat assistant — Zeroisation, Stock Adjustment, and
+Admin roster/threshold management — using the Claude Agent SDK with a React
 frontend and Express backend. The agent's tools are provided by `../mcp/`,
 which proxies to the real Auth/Validation/Stock backend under `../services/`.
 
@@ -61,7 +62,10 @@ prompt (`server/src/ai-client.ts`) so the agent never calls
 `authenticate_user`/`get_user_details` itself.
 
 Use the mock credentials seeded in `services/auth-service` (see
-`../README.md`'s "Mock data" section) — e.g. `priya.k` / `password123`.
+`../README.md`'s "Mock data" section) — e.g. `priya.k` / `password123`
+(Manager), `alex.w` / `password123` (Associate), or `admin.a` /
+`password123` (Admin — roster viewing and associate threshold management
+only, no stock-mutation capability).
 
 ## Production Considerations
 

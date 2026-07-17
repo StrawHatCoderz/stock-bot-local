@@ -108,7 +108,7 @@ export class Session {
     });
   }
 
-  subscribe(client: WSClient) {
+    subscribe(client: WSClient) {
     this.subscribers.add(client);
   }
 

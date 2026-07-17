@@ -66,6 +66,15 @@ for await (const message of query({
 | `get_stock` | `GET /api/stock` |
 | `create_zeroization` | `POST /api/stock/zeroization` |
 | `create_area_zeroization` | `POST /api/stock/zeroization/area` |
+| `list_store_managers` | `GET /api/auth/managers` |
+| `list_store_associates` | `GET /api/auth/associates` |
+| `set_associate_threshold` | `PATCH /api/auth/associates/{employeeId}/threshold` |
+
+The last three (Admin-only) are served from a separate `admin-mcp` server —
+see `src/mcp-server-admin.ts` and `src/index.ts`'s `/admin` route. This
+table predates that split and otherwise still describes the original
+stdio-based server layout; see root `CLAUDE.md` for the current SSE
+transport and per-role tool allowlists.
 
 Every tool that needs authorization takes `token` as an explicit input parameter —
 the server is stateless and holds no session state between calls. The calling
