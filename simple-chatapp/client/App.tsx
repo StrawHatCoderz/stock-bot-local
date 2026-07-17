@@ -3,6 +3,7 @@ import useWebSocket, { ReadyState } from "react-use-websocket";
 import { ChatList } from "./components/ChatList";
 import { ChatWindow } from "./components/ChatWindow";
 import { LoginForm, type Identity } from "./components/LoginForm";
+import type { PendingAction } from "./components/ConfirmationModal";
 
 interface Chat {
   id: string;
@@ -30,6 +31,7 @@ export default function App() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 
   const handleWSMessage = useCallback((message: any) => {
     switch (message.type) {
@@ -78,6 +80,19 @@ export default function App() {
         setIsLoading(false);
         // Refresh chat list to get updated titles
         fetchChats();
+        break;
+
+      case "pending_action":
+        setPendingAction({
+          toolName: message.toolName,
+          toolInput: message.toolInput,
+        });
+        setIsLoading(false);
+        break;
+
+      case "action_cancelled":
+        setPendingAction(null);
+        setIsLoading(true);
         break;
 
       case "error":
@@ -145,11 +160,26 @@ export default function App() {
     setSelectedChatId(chatId);
     setMessages([]);
     setIsLoading(false);
+    setPendingAction(null);
     sendJsonMessage({ type: "subscribe", chatId });
   };
 
+  const handleConfirmAction = () => {
+    if (!selectedChatId) return;
+    setPendingAction(null);
+    setIsLoading(true);
+    sendJsonMessage({ type: "confirm_action", chatId: selectedChatId });
+  };
+
+  const handleCancelAction = () => {
+    if (!selectedChatId) return;
+    setPendingAction(null);
+    setIsLoading(true);
+    sendJsonMessage({ type: "cancel_action", chatId: selectedChatId });
+  };
+
   const handleSendMessage = (content: string) => {
-    if (!selectedChatId || !isConnected) return;
+    if (!selectedChatId || !isConnected || pendingAction) return;
 
     setMessages((prev) => [
       ...prev,
@@ -209,6 +239,9 @@ export default function App() {
         isConnected={isConnected}
         isLoading={isLoading}
         onSendMessage={handleSendMessage}
+        pendingAction={pendingAction}
+        onConfirmAction={handleConfirmAction}
+        onCancelAction={handleCancelAction}
       />
     </div>
   );

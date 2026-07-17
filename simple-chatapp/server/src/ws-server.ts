@@ -43,6 +43,18 @@ export const createWsServer = (server: Server) => {
             break;
           }
 
+          case "confirm_action": {
+            const session = sessions.get(message.chatId);
+            session?.resolveConfirmation(true);
+            break;
+          }
+
+          case "cancel_action": {
+            const session = sessions.get(message.chatId);
+            session?.resolveConfirmation(false);
+            break;
+          }
+
           default:
             console.warn("Unknown message type:", (message as any).type);
         }
