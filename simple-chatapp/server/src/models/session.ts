@@ -2,11 +2,20 @@ import type { WSClient } from "../types.js";
 import { AgentSession } from "./agent-session.js";
 import { chatStore } from "./chat-store.js";
 
+const MUTATION_TOOLS = new Set([
+  "mcp__stock-mcp__create_zeroization",
+  "mcp__stock-mcp__create_area_zeroization",
+  "mcp__stock-mcp__create_adjustment",
+  "mcp__admin-mcp__set_associate_threshold",
+]);
+
 export class Session {
   public readonly chatId: string;
   private subscribers: Set<WSClient> = new Set();
   private agentSession: AgentSession;
   private isListening = false;
+  private pendingConfirmation: ((confirmed: boolean) => void) | null = null;
+  private pendingRestart = false;
 
   constructor(chatId: string) {
     this.chatId = chatId;
@@ -20,11 +29,18 @@ export class Session {
 
     try {
       for await (const message of this.agentSession.getOutputStream()) {
-        this.handleSDKMessage(message);
+        const cancelled = await this.handleSDKMessage(message);
+        if (cancelled) break;
       }
     } catch (error) {
       console.error(`Error in session ${this.chatId}:`, error);
       this.broadcastError((error as Error).message);
+    } finally {
+      this.isListening = false;
+      if (this.pendingRestart) {
+        this.pendingRestart = false;
+        this.startListening();
+      }
     }
   }
 
@@ -47,26 +63,45 @@ export class Session {
     }
   }
 
-  private handleSDKMessage(message: any) {
+  // Returns true if the loop should break (i.e. action was cancelled)
+  private async handleSDKMessage(message: any): Promise<boolean> {
     switch (message.type) {
       case "assistant":
-        this.handleAssistantMessage(message);
-        break;
+        return await this.handleAssistantMessage(message);
       case "result":
         this.handleResultMessage(message);
-        break;
+        return false;
+      default:
+        return false;
     }
   }
 
-  private handleAssistantMessage(message: any) {
+  private async handleAssistantMessage(message: any): Promise<boolean> {
     const content = message.message.content;
-    const blocks = typeof content === "string"
+    const blocks: any[] = typeof content === "string"
       ? [{ type: "text", text: content }]
       : content;
 
     for (const block of blocks) {
       this.handleAssistantBlock(block);
     }
+
+    const mutationBlock = blocks.find(
+      (b) => b.type === "tool_use" && MUTATION_TOOLS.has(b.name)
+    );
+
+    if (mutationBlock) {
+      const confirmed = await this.awaitConfirmation(
+        mutationBlock.name,
+        mutationBlock.input
+      );
+      if (!confirmed) {
+        this.handleCancellation();
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private handleAssistantBlock(block: any) {
@@ -84,6 +119,42 @@ export class Session {
         });
         break;
     }
+  }
+
+  private awaitConfirmation(toolName: string, toolInput: any): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.pendingConfirmation = resolve;
+      this.broadcast({
+        type: "pending_action",
+        toolName,
+        toolInput,
+        chatId: this.chatId,
+      });
+    });
+  }
+
+  resolveConfirmation(confirmed: boolean) {
+    if (this.pendingConfirmation) {
+      const resolve = this.pendingConfirmation;
+      this.pendingConfirmation = null;
+      resolve(confirmed);
+    }
+  }
+
+  private handleCancellation() {
+    this.broadcast({
+      type: "action_cancelled",
+      chatId: this.chatId,
+    });
+
+    this.agentSession.close();
+    const identity = chatStore.getChat(this.chatId)?.identity;
+    this.agentSession = new AgentSession(identity);
+    // Inject context for the new session without surfacing it as a user message
+    this.agentSession.sendMessage(
+      "The user has cancelled this action. Please acknowledge the cancellation briefly and let them know the action was not performed."
+    );
+    this.pendingRestart = true;
   }
 
   private persistAndBroadcastText(text: string) {
@@ -108,7 +179,7 @@ export class Session {
     });
   }
 
-    subscribe(client: WSClient) {
+  subscribe(client: WSClient) {
     this.subscribers.add(client);
   }
 
