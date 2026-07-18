@@ -4,7 +4,7 @@ COPY gradlew settings.gradle build.gradle ./
 COPY gradle ./gradle
 COPY stock-service ./stock-service
 # Create dummy directories for other projects so settings.gradle doesn't complain
-RUN mkdir auth-service validation-service
+RUN mkdir auth-service validation-service transfer-service
 
 ENV GRADLE_OPTS="-Dorg.gradle.jvmargs='-Xmx384m' -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1 -Dorg.gradle.vfs.watch=false"
 

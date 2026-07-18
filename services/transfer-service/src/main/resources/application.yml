@@ -1,0 +1,14 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: transfer-service
+
+auth:
+  service:
+    url: http://localhost:8081
+
+stock:
+  service:
+    url: http://localhost:8083

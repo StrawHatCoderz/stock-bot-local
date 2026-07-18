@@ -37,6 +37,14 @@ final class MockStockData {
             this.unit = unit;
             this.quantity = quantity;
         }
+
+        long getQuantity() {
+            return quantity;
+        }
+
+        void setQuantity(long quantity) {
+            this.quantity = quantity;
+        }
     }
 
     static final List<StockItem> STOCK = List.of(

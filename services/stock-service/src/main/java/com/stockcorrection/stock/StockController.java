@@ -34,6 +34,18 @@ public class StockController {
     record AdjustmentRequest(
             String areaId, String productId, long requestedQuantity, String reason, String remarks) {}
 
+    record TransferReserveRequest(String areaId, String productId, long requestedQuantity) {}
+
+    private enum Role { STORE_MANAGER, STORE_ASSOCIATE, ADMIN }
+
+    private static Role parseRole(String role) {
+        try {
+            return Role.valueOf(role);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     @GetMapping
     public ResponseEntity<Map<String, Object>> getStock(
             @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
@@ -188,6 +200,34 @@ public class StockController {
         return ResponseEntity.ok(body);
     }
 
+    @PostMapping("/transfer-reserve")
+    public ResponseEntity<Map<String, Object>> createTransferReserve(
+            @RequestBody TransferReserveRequest request,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+        Role callerRole = parseRole(role);
+        if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
+            return ResponseEntity.ok(transferReserveForbiddenRoleBody());
+        }
+
+        MockStockData.StockItem item = MockStockData.find(storeId, request.areaId(), request.productId());
+
+        if (item == null) {
+            return ResponseEntity.ok(areaOrProductNotFoundBody());
+        }
+
+        if (request.requestedQuantity() <= 0 || item.getQuantity() < request.requestedQuantity()) {
+            return ResponseEntity.ok(transferExceedsAvailableBody());
+        }
+
+        item.setQuantity(item.getQuantity() - request.requestedQuantity());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("reserved", true);
+        body.put("resultingQuantity", item.getQuantity());
+        return ResponseEntity.ok(body);
+    }
+
     /**
      * Checks a Store Associate's requested reduction (already expressed as a
      * percentage of the product's current on-hand quantity) against the
@@ -261,6 +301,30 @@ public class StockController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", "FAILED");
         body.put("errorCode", "ADJUSTMENT_EXCEEDS_AVAILABLE");
+        body.put("message", "Requested quantity exceeds available stock.");
+        return body;
+    }
+
+    private Map<String, Object> transferReserveForbiddenRoleBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("reserved", false);
+        body.put("errorCode", "FORBIDDEN_ROLE");
+        body.put("message", "Only store managers can reserve stock for a transfer.");
+        return body;
+    }
+
+    private Map<String, Object> areaOrProductNotFoundBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("reserved", false);
+        body.put("errorCode", "AREA_OR_PRODUCT_NOT_FOUND");
+        body.put("message", "Product not found in the specified source area.");
+        return body;
+    }
+
+    private Map<String, Object> transferExceedsAvailableBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("reserved", false);
+        body.put("errorCode", "TRANSFER_EXCEEDS_AVAILABLE");
         body.put("message", "Requested quantity exceeds available stock.");
         return body;
     }

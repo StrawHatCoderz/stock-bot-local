@@ -24,6 +24,19 @@ services:
     networks:
       - mock-net
 
+  transfer-service:
+    build:
+      context: .
+      dockerfile: transfer-service/Dockerfile
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8081
+      - STOCK_SERVICE_URL=http://stock-service:8083
+    depends_on:
+      - auth-service
+      - stock-service
+    networks:
+      - mock-net
+
   api-gateway:
     image: nginx:1.27-alpine
     ports:
@@ -34,6 +47,7 @@ services:
       - auth-service
       - validation-service
       - stock-service
+      - transfer-service
     networks:
       - mock-net
 
