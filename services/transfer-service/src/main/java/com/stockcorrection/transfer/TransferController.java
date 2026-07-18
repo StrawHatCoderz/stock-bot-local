@@ -91,13 +91,27 @@ public class TransferController {
     }
 
     @GetMapping("/{storeId}/outgoing")
-    public ResponseEntity<Map<String, Object>> listOutgoing(@PathVariable String storeId) {
+    public ResponseEntity<Map<String, Object>> listOutgoing(
+            @PathVariable String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+        Role callerRole = parseRole(role);
+        if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
+            return ResponseEntity.ok(rejectionBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may view transfer requests."));
+        }
+
         List<MockTransferData.TransferRequest> requests = MockTransferData.findByFromStore(storeId);
         return ResponseEntity.ok(listingBody(storeId, "OUTGOING", requests));
     }
 
     @GetMapping("/{storeId}/incoming")
-    public ResponseEntity<Map<String, Object>> listIncoming(@PathVariable String storeId) {
+    public ResponseEntity<Map<String, Object>> listIncoming(
+            @PathVariable String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+        Role callerRole = parseRole(role);
+        if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
+            return ResponseEntity.ok(rejectionBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may view transfer requests."));
+        }
+
         List<MockTransferData.TransferRequest> requests = MockTransferData.findByToStore(storeId);
         return ResponseEntity.ok(listingBody(storeId, "INCOMING", requests));
     }
