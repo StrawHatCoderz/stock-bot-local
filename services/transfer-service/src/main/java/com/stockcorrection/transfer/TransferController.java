@@ -51,19 +51,19 @@ public class TransferController {
 
         Role callerRole = parseRole(role);
         if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
-            return ResponseEntity.ok(rejectionBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may create a transfer request."));
+            return ResponseEntity.ok(createRejectionBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may create a transfer request."));
         }
 
         if (!verifiedStoreId.equals(request.fromStoreId())) {
-            return ResponseEntity.ok(rejectionBody(RejectionReason.CROSS_STORE_FORBIDDEN, "fromStoreId must match your own store."));
+            return ResponseEntity.ok(createRejectionBody(RejectionReason.CROSS_STORE_FORBIDDEN, "fromStoreId must match your own store."));
         }
 
         if (request.toStoreId().equals(request.fromStoreId()) || !MockStoreData.exists(request.toStoreId())) {
-            return ResponseEntity.ok(rejectionBody(RejectionReason.INVALID_DESTINATION_STORE, "Destination store is invalid or unrecognized."));
+            return ResponseEntity.ok(createRejectionBody(RejectionReason.INVALID_DESTINATION_STORE, "Destination store is invalid or unrecognized."));
         }
 
         if (request.products() == null || request.products().isEmpty()) {
-            return ResponseEntity.ok(rejectionBody(RejectionReason.EMPTY_PRODUCT_LIST, "At least one product line is required."));
+            return ResponseEntity.ok(createRejectionBody(RejectionReason.EMPTY_PRODUCT_LIST, "At least one product line is required."));
         }
 
         List<MockTransferData.TransferLine> lines = new ArrayList<>();
@@ -121,10 +121,10 @@ public class TransferController {
     private Map<String, Object> checkListingAccess(String storeId, String role, String verifiedStoreId) {
         Role callerRole = parseRole(role);
         if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
-            return rejectionBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may view transfer requests.");
+            return errorBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may view transfer requests.");
         }
         if (!verifiedStoreId.equals(storeId)) {
-            return rejectionBody(RejectionReason.CROSS_STORE_FORBIDDEN, "storeId must match your own store.");
+            return errorBody(RejectionReason.CROSS_STORE_FORBIDDEN, "storeId must match your own store.");
         }
         return null;
     }
@@ -137,11 +137,17 @@ public class TransferController {
         return body;
     }
 
-    private Map<String, Object> rejectionBody(RejectionReason reason, String message) {
+    private Map<String, Object> errorBody(RejectionReason reason, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("created", false);
         body.put("errorCode", reason.name());
         body.put("message", message);
+        return body;
+    }
+
+    private Map<String, Object> createRejectionBody(RejectionReason reason, String message) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("created", false);
+        body.putAll(errorBody(reason, message));
         return body;
     }
 
