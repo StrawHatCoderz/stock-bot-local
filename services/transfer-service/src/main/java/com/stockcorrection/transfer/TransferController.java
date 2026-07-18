@@ -93,10 +93,11 @@ public class TransferController {
     @GetMapping("/{storeId}/outgoing")
     public ResponseEntity<Map<String, Object>> listOutgoing(
             @PathVariable String storeId,
-            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
-        Role callerRole = parseRole(role);
-        if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
-            return ResponseEntity.ok(rejectionBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may view transfer requests."));
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String verifiedStoreId) {
+        Map<String, Object> rejection = checkListingAccess(storeId, role, verifiedStoreId);
+        if (rejection != null) {
+            return ResponseEntity.ok(rejection);
         }
 
         List<MockTransferData.TransferRequest> requests = MockTransferData.findByFromStore(storeId);
@@ -106,14 +107,26 @@ public class TransferController {
     @GetMapping("/{storeId}/incoming")
     public ResponseEntity<Map<String, Object>> listIncoming(
             @PathVariable String storeId,
-            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
-        Role callerRole = parseRole(role);
-        if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
-            return ResponseEntity.ok(rejectionBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may view transfer requests."));
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String verifiedStoreId) {
+        Map<String, Object> rejection = checkListingAccess(storeId, role, verifiedStoreId);
+        if (rejection != null) {
+            return ResponseEntity.ok(rejection);
         }
 
         List<MockTransferData.TransferRequest> requests = MockTransferData.findByToStore(storeId);
         return ResponseEntity.ok(listingBody(storeId, "INCOMING", requests));
+    }
+
+    private Map<String, Object> checkListingAccess(String storeId, String role, String verifiedStoreId) {
+        Role callerRole = parseRole(role);
+        if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
+            return rejectionBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may view transfer requests.");
+        }
+        if (!verifiedStoreId.equals(storeId)) {
+            return rejectionBody(RejectionReason.CROSS_STORE_FORBIDDEN, "storeId must match your own store.");
+        }
+        return null;
     }
 
     private Map<String, Object> listingBody(String storeId, String direction, List<MockTransferData.TransferRequest> requests) {
