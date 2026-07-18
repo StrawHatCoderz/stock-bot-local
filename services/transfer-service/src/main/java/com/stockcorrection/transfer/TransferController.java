@@ -96,6 +96,12 @@ public class TransferController {
         return ResponseEntity.ok(listingBody(storeId, "OUTGOING", requests));
     }
 
+    @GetMapping("/{storeId}/incoming")
+    public ResponseEntity<Map<String, Object>> listIncoming(@PathVariable String storeId) {
+        List<MockTransferData.TransferRequest> requests = MockTransferData.findByToStore(storeId);
+        return ResponseEntity.ok(listingBody(storeId, "INCOMING", requests));
+    }
+
     private Map<String, Object> listingBody(String storeId, String direction, List<MockTransferData.TransferRequest> requests) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("storeId", storeId);
