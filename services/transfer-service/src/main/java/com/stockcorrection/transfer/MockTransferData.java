@@ -2,6 +2,7 @@ package com.stockcorrection.transfer;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -110,6 +111,20 @@ final class MockTransferData {
                 "XFER-" + transferSeq.getAndIncrement(), fromStoreId, toStoreId, initiatedBy, Instant.now(), lines);
         REQUESTS.add(request);
         return request;
+    }
+
+    static synchronized List<TransferRequest> findByFromStore(String storeId) {
+        return REQUESTS.stream()
+                .filter(r -> r.getFromStoreId().equals(storeId))
+                .sorted(Comparator.comparing(TransferRequest::getCreatedAt).reversed())
+                .toList();
+    }
+
+    static synchronized List<TransferRequest> findByToStore(String storeId) {
+        return REQUESTS.stream()
+                .filter(r -> r.getToStoreId().equals(storeId))
+                .sorted(Comparator.comparing(TransferRequest::getCreatedAt).reversed())
+                .toList();
     }
 
     private MockTransferData() {}
