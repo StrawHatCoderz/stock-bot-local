@@ -30,7 +30,7 @@ npm run build            # vite build -> dist/ (frontend only)
 
 No test or lint script is defined in either package; there is no test suite in this directory.
 
-Visit http://localhost:5173 and log in with a seeded store-manager account (e.g. `priya.k` / `password123`) before the chat UI appears.
+Visit http://localhost:5173 and log in with a seeded store-manager account (e.g. `user001` / `password123`) before the chat UI appears.
 
 ## Architecture
 

@@ -62,8 +62,8 @@ prompt (`server/src/ai-client.ts`) so the agent never calls
 `authenticate_user`/`get_user_details` itself.
 
 Use the mock credentials seeded in `services/auth-service` (see
-`../README.md`'s "Mock data" section) — e.g. `priya.k` / `password123`
-(Manager), `alex.w` / `password123` (Associate), or `admin.a` /
+`../README.md`'s "Mock data" section) — e.g. `user001` / `password123`
+(Manager), `user004` / `password123` (Associate), or `user006` /
 `password123` (Admin — roster viewing and associate threshold management
 only, no stock-mutation capability).
 
