@@ -1,6 +1,8 @@
 package com.stockcorrection.transfer;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -88,6 +90,20 @@ public class TransferController {
         return ResponseEntity.ok(successBody(created));
     }
 
+    @GetMapping("/{storeId}/outgoing")
+    public ResponseEntity<Map<String, Object>> listOutgoing(@PathVariable String storeId) {
+        List<MockTransferData.TransferRequest> requests = MockTransferData.findByFromStore(storeId);
+        return ResponseEntity.ok(listingBody(storeId, "OUTGOING", requests));
+    }
+
+    private Map<String, Object> listingBody(String storeId, String direction, List<MockTransferData.TransferRequest> requests) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("storeId", storeId);
+        body.put("direction", direction);
+        body.put("transfers", requests.stream().map(this::transferBody).toList());
+        return body;
+    }
+
     private Map<String, Object> rejectionBody(RejectionReason reason, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("created", false);
@@ -109,12 +125,18 @@ public class TransferController {
     private Map<String, Object> successBody(MockTransferData.TransferRequest created) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("created", true);
-        body.put("transferId", created.getTransferId());
-        body.put("fromStoreId", created.getFromStoreId());
-        body.put("toStoreId", created.getToStoreId());
-        body.put("initiatedBy", created.getInitiatedBy());
-        body.put("createdAt", created.getCreatedAt().toString());
-        body.put("lines", created.getLines().stream().map(this::lineBody).toList());
+        body.putAll(transferBody(created));
+        return body;
+    }
+
+    private Map<String, Object> transferBody(MockTransferData.TransferRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("transferId", request.getTransferId());
+        body.put("fromStoreId", request.getFromStoreId());
+        body.put("toStoreId", request.getToStoreId());
+        body.put("initiatedBy", request.getInitiatedBy());
+        body.put("createdAt", request.getCreatedAt().toString());
+        body.put("lines", request.getLines().stream().map(this::lineBody).toList());
         return body;
     }
 
