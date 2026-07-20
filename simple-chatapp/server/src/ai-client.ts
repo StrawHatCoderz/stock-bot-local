@@ -1,88 +1,65 @@
 import type { LoginIdentity } from "./types.js";
 
-// The MCP server lives in a sibling top-level directory (../../mcp relative
-// to this file), built separately (`npm run build` in mcp/) — see
-// ../../mcp/README.md.
-// We use SSE for the HTTP server
 export const MCP_HOST = process.env.MCP_HOST || "localhost:3000";
 
-// Base URL for the real Auth/Validation/Stock backend the MCP server
-// proxies to (e.g. the nginx gateway from services/docker-compose.yml).
 export const STOCK_API_BASE_URL = process.env.STOCK_API_BASE_URL || "http://localhost:8080";
 
-// Only these stock-operation tools are exposed to the agent.
-// authenticate_user/get_user_details exist on the MCP server too, but login
-// already happened server-side before this session is ever created — the
-// agent has no reason to call them, and letting it try would just confuse
-// the "already logged in" story below.
-const READ_ONLY_MCP_TOOLS = [
-  "mcp__validation-mcp__search_areas_fuzzy",
-  "mcp__validation-mcp__search_products_fuzzy",
-  "mcp__validation-mcp__validate_area",
-  "mcp__validation-mcp__validate_product",
-  "mcp__validation-mcp__list_areas",
-  "mcp__stock-mcp__get_stock",
-];
+enum McpTool {
+  SearchAreasFuzzy = "mcp__validation-mcp__search_areas_fuzzy",
+  SearchProductsFuzzy = "mcp__validation-mcp__search_products_fuzzy",
+  ValidateArea = "mcp__validation-mcp__validate_area",
+  ValidateProduct = "mcp__validation-mcp__validate_product",
+  ListAreas = "mcp__validation-mcp__list_areas",
+  GetStock = "mcp__stock-mcp__get_stock",
+  CreateZeroization = "mcp__stock-mcp__create_zeroization",
+  CreateAreaZeroization = "mcp__stock-mcp__create_area_zeroization",
+  CreateAdjustment = "mcp__stock-mcp__create_adjustment",
+  GetAdjustmentThreshold = "mcp__stock-mcp__get_adjustment_threshold",
+  CreateTransfer = "mcp__transfer-mcp__create_transfer",
+  ListOutgoingTransfers = "mcp__transfer-mcp__list_outgoing_transfers",
+  ListIncomingTransfers = "mcp__transfer-mcp__list_incoming_transfers",
+  ListStoreManagers = "mcp__admin-mcp__list_store_managers",
+  ListStoreAssociates = "mcp__admin-mcp__list_store_associates",
+  SetAssociateThreshold = "mcp__admin-mcp__set_associate_threshold",
+}
 
-// create_zeroization/create_area_zeroization are write operations gated to
-// STORE_MANAGER only. This is a hard gate, not a prompt instruction: for any
-// other role (or no identity at all) these two tools are omitted from
-// allowedTools, so the SDK cannot invoke them regardless of what the model
-// decides. This is in addition to — not a replacement for — the
-// FORBIDDEN_ROLE check in StockController.java, which remains the real
-// security boundary.
-const WRITE_MCP_TOOLS = [
-  "mcp__stock-mcp__create_zeroization",
-  "mcp__stock-mcp__create_area_zeroization",
-];
+const TOOL_GROUPS = {
+  read: [
+    McpTool.SearchAreasFuzzy,
+    McpTool.SearchProductsFuzzy,
+    McpTool.ValidateArea,
+    McpTool.ValidateProduct,
+    McpTool.ListAreas,
+    McpTool.GetStock,
+  ],
+  adjustments: [McpTool.CreateAdjustment, McpTool.GetAdjustmentThreshold],
+  zeroization: [McpTool.CreateZeroization, McpTool.CreateAreaZeroization],
+  transfers: [
+    McpTool.CreateTransfer,
+    McpTool.ListOutgoingTransfers,
+    McpTool.ListIncomingTransfers,
+  ],
+  admin: [
+    McpTool.ListStoreManagers,
+    McpTool.ListStoreAssociates,
+    McpTool.SetAssociateThreshold,
+  ],
+} as const;
 
-// create_adjustment is also a write operation, but — unlike zeroisation —
-// it's available to STORE_ASSOCIATE as well as STORE_MANAGER; the per-role
-// quantity floor (Associates can't reduce to exactly 0) is enforced
-// authoritatively by StockController.java, not by tool presence, since it
-// depends on the item's live quantity rather than a static role->tool
-// mapping. Still fails closed for any other role or no identity at all.
-const ADJUSTMENT_MCP_TOOLS = [
-  "mcp__stock-mcp__create_adjustment",
-  "mcp__stock-mcp__get_adjustment_threshold",
-];
+const ROLE_TOOLS = {
+  STORE_MANAGER: [
+    ...TOOL_GROUPS.read,
+    ...TOOL_GROUPS.adjustments,
+    ...TOOL_GROUPS.zeroization,
+    ...TOOL_GROUPS.transfers,
+  ],
+  STORE_ASSOCIATE: [...TOOL_GROUPS.read, ...TOOL_GROUPS.adjustments],
+  ADMIN: TOOL_GROUPS.admin,
+} satisfies Record<string, readonly McpTool[]>;
 
-// Store-to-Store Transfer is STORE_MANAGER-only, same hard-gate treatment as
-// WRITE_MCP_TOOLS — transfer-service's own FORBIDDEN_ROLE/CROSS_STORE_FORBIDDEN
-// checks remain the real security boundary.
-const TRANSFER_MCP_TOOLS = [
-  "mcp__transfer-mcp__create_transfer",
-  "mcp__transfer-mcp__list_outgoing_transfers",
-  "mcp__transfer-mcp__list_incoming_transfers",
-];
-
-export const ALLOWED_MCP_TOOLS = [
-  ...READ_ONLY_MCP_TOOLS,
-  ...WRITE_MCP_TOOLS,
-  ...ADJUSTMENT_MCP_TOOLS,
-  ...TRANSFER_MCP_TOOLS,
-];
-
-// Admin gets exactly these three tools and nothing else — no read-only,
-// write, or adjustment tool is included, so an Admin session's model
-// structurally cannot call create_zeroization/create_adjustment/get_stock/
-// any validation tool, regardless of what it's asked to do. This is the
-// authoritative enforcement of the "Admin cannot perform zeroisation, stock
-// adjustment, or transfer" restriction (see specs/002-admin-role).
-const ADMIN_MCP_TOOLS = [
-  "mcp__admin-mcp__list_store_managers",
-  "mcp__admin-mcp__list_store_associates",
-  "mcp__admin-mcp__set_associate_threshold",
-];
-
-const ROLE_TOOLS: Record<string, string[]> = {
-  STORE_MANAGER: ALLOWED_MCP_TOOLS,
-  STORE_ASSOCIATE: [...READ_ONLY_MCP_TOOLS, ...ADJUSTMENT_MCP_TOOLS],
-  ADMIN: ADMIN_MCP_TOOLS,
-};
-
-export const getAllowedToolsForRole = (role: string | undefined): string[] =>
-  (role !== undefined && ROLE_TOOLS[role]) || READ_ONLY_MCP_TOOLS;
+export const getAllowedToolsForRole = (role: string | undefined): readonly McpTool[] =>
+  (role !== undefined && (ROLE_TOOLS as Record<string, readonly McpTool[]>)[role]) ||
+  TOOL_GROUPS.read;
 
 export const buildSystemPrompt = (identity: LoginIdentity | undefined): string => {
   const identityBlock = identity

@@ -13,7 +13,7 @@ export class AgentSession {
       options: {
         maxTurns: 100,
         model: "claude-sonnet-5",
-        allowedTools: getAllowedToolsForRole(identity?.role),
+        allowedTools: [...getAllowedToolsForRole(identity?.role)],
         systemPrompt: buildSystemPrompt(identity),
         settingSources: [],
         mcpServers: {
