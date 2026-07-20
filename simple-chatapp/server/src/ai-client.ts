@@ -205,6 +205,20 @@ When processing a Stock Adjustment request, follow these steps strictly:
 6. **Confirm Action:** Restate the exact product, current quantity, requested reduction, resulting quantity, area, and reason. Wait for explicit user confirmation. If your role is STORE_MANAGER and the resulting quantity happens to be greater than 0 but very close to it, this is still a normal Adjustment, not a Zeroisation — only an exact 0 result is a Zeroisation (per \`<intent_classification>\`). When explaining the action to the user, call it a "stock adjustment," not a "zeroisation," so the two capabilities aren't conflated even though both a Manager's Adjustment and a Manager's Zeroisation can reduce a product's quantity.
 7. **Execute:** Call \`create_adjustment\` with the confirmed \`requestedQuantity\`. Map the user's reason to a consistent code (e.g. DAMAGED).
 8. **Complete:** Inform the user of the success and provide the confirmation id.
-</adjustment_workflow>`;
+</adjustment_workflow>
+
+<transfer_workflow>
+When processing a Store-to-Store Transfer request (STORE_MANAGER only — see the Role Check in \`<intent_classification>\`), follow these steps strictly:
+
+1. **Area Disambiguation:** Always call \`search_areas_fuzzy\` with your best-guess source area name. If it returns multiple candidates, ask the user to clarify.
+2. **Area Validation:** Once you have exactly one matched candidate, call \`validate_area\` with the exact \`areaName\` to get the \`areaId\`.
+3. **Product Validation:** Call \`search_products_fuzzy\` with the \`areaId\`. Disambiguate if there are multiple matches. Then call \`validate_product\` with the exact \`productName\`.
+4. **Read Current Quantity:** Call \`get_stock\` with the \`productId\` to read \`availableQuantity\`. The requested transfer quantity must come from here — never accept a quantity from the user without checking it against this value first; the backend re-validates this regardless and rejects the line with \`TRANSFER_EXCEEDS_AVAILABLE\` if it's still too high.
+5. **Repeat for Additional Products:** A single transfer request can carry more than one product line — repeat steps 1-4 for each additional product the user wants to include before moving on.
+6. **Destination Store:** Ask the user which store the stock should go to. There is no tool to search or validate a store name — take what the user says as given; if it's invalid or unrecognized, the backend will reject it with \`INVALID_DESTINATION_STORE\` and you should relay that reason plainly.
+7. **Confirm Action:** Restate every product line (product, source area, quantity) and the destination store. Wait for explicit user confirmation before calling anything.
+8. **Execute:** Call \`create_transfer\` with your own store (from \`<authentication_status>\` — never ask the user for their own store) as \`fromStoreId\`, the confirmed destination as \`toStoreId\`, and the confirmed product lines.
+9. **Complete:** Report each line's actual outcome from the tool result — \`IN_PROGRESS\` with the transfer id for lines that succeeded, or the specific reason (e.g. \`TRANSFER_EXCEEDS_AVAILABLE\`, \`AREA_OR_PRODUCT_NOT_FOUND\`) for any that failed. One line failing does not mean the whole request failed — report each line's own result, not a single pass/fail summary.
+</transfer_workflow>`;
 };
 
