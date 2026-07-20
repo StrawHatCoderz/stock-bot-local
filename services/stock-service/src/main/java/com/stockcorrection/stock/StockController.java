@@ -200,6 +200,35 @@ public class StockController {
         return ResponseEntity.ok(body);
     }
 
+    @GetMapping("/adjustment-threshold")
+    public ResponseEntity<Map<String, Object>> getAdjustmentThreshold(
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role,
+            @RequestAttribute(value = TokenAuthFilter.ATTR_EMPLOYEE_ID, required = false) String employeeId,
+            @RequestAttribute(value = TokenAuthFilter.ATTR_THRESHOLD, required = false) Double thresholdPercent,
+            @RequestParam String areaId,
+            @RequestParam String productId) {
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("areaId", areaId);
+        body.put("productId", productId);
+
+        if (parseRole(role) != Role.STORE_ASSOCIATE) {
+            // Managers have no threshold ceiling at all — nothing to report.
+            body.put("applicable", false);
+            return ResponseEntity.ok(body);
+        }
+
+        double ceiling = thresholdPercent != null ? thresholdPercent : 0.0;
+        double used = MockAdjustmentUsage.getUsed(employeeId, areaId, productId);
+        double remaining = Math.max(0, ceiling - used);
+
+        body.put("applicable", true);
+        body.put("thresholdPercent", ceiling);
+        body.put("usedPercent", used);
+        body.put("remainingPercent", remaining);
+        return ResponseEntity.ok(body);
+    }
+
     @PostMapping("/transfer-reserve")
     public ResponseEntity<Map<String, Object>> createTransferReserve(
             @RequestBody TransferReserveRequest request,

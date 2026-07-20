@@ -186,5 +186,41 @@ export const createStockMCPServer = (options: {
     },
   );
 
+  server.registerTool(
+    "get_adjustment_threshold",
+    {
+      title: "Get Adjustment Threshold",
+      description:
+        "Look up how much of a store associate's per-product stock-adjustment threshold " +
+        "is still remaining, before calling create_adjustment. Returns `applicable: false` " +
+        "for a STORE_MANAGER caller (managers have no threshold ceiling) — skip the check " +
+        "entirely in that case. For a STORE_ASSOCIATE caller, returns `applicable: true` " +
+        "plus `thresholdPercent` (their ceiling), `usedPercent` (already consumed for this " +
+        "product), and `remainingPercent` (what's left). Compare `remainingPercent` against " +
+        "the requested reduction expressed as a percentage of the product's current " +
+        "availableQuantity (from get_stock) before calling create_adjustment.",
+      inputSchema: {
+        areaId: z
+          .string()
+          .describe("The validated areaId the product is being adjusted in."),
+        productId: z
+          .string()
+          .describe("The validated productId being adjusted."),
+      },
+    },
+    async ({ areaId, productId }) => {
+      try {
+        const token = getSessionToken();
+        const result = await callApi("GET", "/api/stock/adjustment-threshold", {
+          token,
+          query: { areaId, productId },
+        });
+        return apiResultToToolResult(result);
+      } catch (err) {
+        return errorToToolResult(err);
+      }
+    },
+  );
+
   return server;
 };
