@@ -72,18 +72,14 @@ const ADMIN_MCP_TOOLS = [
   "mcp__admin-mcp__set_associate_threshold",
 ];
 
-export const getAllowedToolsForRole = (role: string | undefined): string[] => {
-  if (role === "STORE_MANAGER") {
-    return ALLOWED_MCP_TOOLS;
-  }
-  if (role === "STORE_ASSOCIATE") {
-    return [...READ_ONLY_MCP_TOOLS, ...ADJUSTMENT_MCP_TOOLS];
-  }
-  if (role === "ADMIN") {
-    return ADMIN_MCP_TOOLS;
-  }
-  return READ_ONLY_MCP_TOOLS;
+const ROLE_TOOLS: Record<string, string[]> = {
+  STORE_MANAGER: ALLOWED_MCP_TOOLS,
+  STORE_ASSOCIATE: [...READ_ONLY_MCP_TOOLS, ...ADJUSTMENT_MCP_TOOLS],
+  ADMIN: ADMIN_MCP_TOOLS,
 };
+
+export const getAllowedToolsForRole = (role: string | undefined): string[] =>
+  (role !== undefined && ROLE_TOOLS[role]) || READ_ONLY_MCP_TOOLS;
 
 export const buildSystemPrompt = (identity: LoginIdentity | undefined): string => {
   const identityBlock = identity
