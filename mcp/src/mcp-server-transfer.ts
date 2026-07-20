@@ -68,5 +68,34 @@ export const createTransferMCPServer = (options: {
     },
   );
 
+  server.registerTool(
+    "list_outgoing_transfers",
+    {
+      title: "List Outgoing Transfer Requests",
+      description:
+        "List every transfer request the given store has initiated, most-recently-created " +
+        "first, with full per-line detail. `storeId` must be the caller's own store, or the " +
+        "request is rejected. Store-manager only.",
+      inputSchema: {
+        storeId: z
+          .string()
+          .describe(
+            "The store whose outgoing transfer requests to list. Must be the caller's own store, or the request is rejected.",
+          ),
+      },
+    },
+    async ({ storeId }) => {
+      try {
+        const token = getSessionToken();
+        const result = await callApi("GET", `/api/transfer/${storeId}/outgoing`, {
+          token,
+        });
+        return apiResultToToolResult(result);
+      } catch (err) {
+        return errorToToolResult(err);
+      }
+    },
+  );
+
   return server;
 };
