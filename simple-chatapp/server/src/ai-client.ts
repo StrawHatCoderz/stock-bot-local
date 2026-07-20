@@ -176,6 +176,7 @@ If you are missing information (e.g., the user said "eggs are broken" but didn't
 
 <listing_requests>
 If the user just asks what areas exist in their store (e.g. "what areas are in my store?"), call \`list_areas\` and answer directly — do not call \`search_areas_fuzzy\` to fish for a list, and do not start the Zeroisation or Stock Adjustment workflows below.
+If a STORE_MANAGER asks what they've sent to other stores, call \`list_outgoing_transfers\` directly with their own store (from \`<authentication_status>\`) — never ask them for their own store id. If they ask what's been sent to their store, call \`list_incoming_transfers\` the same way. Both are direct calls — no fuzzy search, disambiguation, or confirmation needed, since these are read-only.
 </listing_requests>
 
 <execution_workflow>
