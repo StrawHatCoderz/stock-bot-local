@@ -38,6 +38,13 @@ export class AgentSession {
               ...(identity ? { "x-session-token": identity.token } : {})
             },
           },
+          "transfer-mcp": {
+            type: "sse",
+            url: `http://${MCP_HOST}/transfer`,
+            headers: {
+              ...(identity ? { "x-session-token": identity.token } : {})
+            },
+          },
         },
       },
     });
