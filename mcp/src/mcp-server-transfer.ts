@@ -10,5 +10,63 @@ export const createTransferMCPServer = (options: {
 }): McpServer => {
   const server = new McpServer(options);
 
+  server.registerTool(
+    "create_transfer",
+    {
+      title: "Create Store-to-Store Transfer",
+      description:
+        "Request a transfer of one or more products from the caller's own store to a " +
+        "different destination store. Each product line is reserved from the source " +
+        "store's real stock immediately and evaluated independently — one line failing " +
+        "(e.g. insufficient stock) does not block the others. `requestedQuantity` for each " +
+        "line must come from a prior get_stock call, never invented or estimated. Only a " +
+        "store manager may call this. Always confirm every product, source area, " +
+        "quantity, and the destination store with the user before calling — it moves real " +
+        "stock out of the source store immediately.",
+      inputSchema: {
+        fromStoreId: z
+          .string()
+          .describe(
+            "The caller's own store — must match their verified identity or the request is rejected.",
+          ),
+        toStoreId: z
+          .string()
+          .describe("The destination store. Must be a different, recognized store."),
+        products: z
+          .array(
+            z.object({
+              productId: z.string(),
+              areaId: z
+                .string()
+                .describe(
+                  "The source area within fromStoreId that currently holds this product.",
+                ),
+              requestedQuantity: z
+                .number()
+                .describe(
+                  "Must come from a prior get_stock call — never invented or estimated.",
+                ),
+            }),
+          )
+          .describe(
+            "One or more product lines to transfer. Each is evaluated independently — " +
+              "one line failing doesn't block the others.",
+          ),
+      },
+    },
+    async ({ fromStoreId, toStoreId, products }) => {
+      try {
+        const token = getSessionToken();
+        const result = await callApi("POST", "/api/transfer", {
+          token,
+          body: { fromStoreId, toStoreId, products },
+        });
+        return apiResultToToolResult(result);
+      } catch (err) {
+        return errorToToolResult(err);
+      }
+    },
+  );
+
   return server;
 };
