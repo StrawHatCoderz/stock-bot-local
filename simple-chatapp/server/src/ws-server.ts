@@ -4,78 +4,92 @@ import type { WSClient, IncomingWSMessage } from "./types.js";
 import { chatStore } from "./models/chat-store.js";
 import { sessions, getOrCreateSession } from "./session-registry.js";
 
-export const createWsServer = (server: Server) => {
-  const wss = new WebSocketServer({ server, path: "/ws" });
+const HEARTBEAT_INTERVAL_MS = 30000;
 
-  wss.on("connection", (ws: WSClient) => {
-    console.log("WebSocket client connected");
-    ws.isAlive = true;
+const handleSubscribe = (ws: WSClient, message: IncomingWSMessage & { type: "subscribe" }) => {
+  const session = getOrCreateSession(message.chatId);
+  session.subscribe(ws);
+  console.log(`Client subscribed to chat ${message.chatId}`);
 
-    ws.send(JSON.stringify({ type: "connected", message: "Connected to chat server" }));
+  const messages = chatStore.getMessages(message.chatId);
+  ws.send(JSON.stringify({
+    type: "history",
+    messages,
+    chatId: message.chatId,
+  }));
+};
 
-    ws.on("pong", () => {
-      ws.isAlive = true;
-    });
+const handleChat = (ws: WSClient, message: IncomingWSMessage & { type: "chat" }) => {
+  const session = getOrCreateSession(message.chatId);
+  session.subscribe(ws);
+  session.sendMessage(message.content);
+};
 
-    ws.on("message", (data) => {
-      try {
-        const message: IncomingWSMessage = JSON.parse(data.toString());
+const onMessage = (ws: WSClient, data: unknown) => {
+  try {
+    const message: IncomingWSMessage = JSON.parse((data as { toString(): string }).toString());
 
-        switch (message.type) {
-          case "subscribe": {
-            const session = getOrCreateSession(message.chatId);
-            session.subscribe(ws);
-            console.log(`Client subscribed to chat ${message.chatId}`);
+    switch (message.type) {
+      case "subscribe":
+        handleSubscribe(ws, message);
+        break;
 
-            const messages = chatStore.getMessages(message.chatId);
-            ws.send(JSON.stringify({
-              type: "history",
-              messages,
-              chatId: message.chatId,
-            }));
-            break;
-          }
+      case "chat":
+        handleChat(ws, message);
+        break;
 
-          case "chat": {
-            const session = getOrCreateSession(message.chatId);
-            session.subscribe(ws);
-            session.sendMessage(message.content);
-            break;
-          }
+      default:
+        console.warn("Unknown message type:", (message as any).type);
+    }
+  } catch (error) {
+    console.error("Error handling WebSocket message:", error);
+    ws.send(JSON.stringify({ type: "error", error: "Invalid message format" }));
+  }
+};
 
-          default:
-            console.warn("Unknown message type:", (message as any).type);
-        }
-      } catch (error) {
-        console.error("Error handling WebSocket message:", error);
-        ws.send(JSON.stringify({ type: "error", error: "Invalid message format" }));
-      }
-    });
+const onPong = (ws: WSClient) => {
+  ws.isAlive = true;
+};
 
-    ws.on("close", () => {
-      console.log("WebSocket client disconnected");
-      for (const session of sessions.values()) {
-        session.unsubscribe(ws);
-      }
-    });
-  });
+const onClose = (ws: WSClient) => {
+  console.log("WebSocket client disconnected");
+  for (const session of sessions.values()) {
+    session.unsubscribe(ws);
+  }
+};
 
-  // Heartbeat to detect dead connections
-  const heartbeat = setInterval(() => {
+const onConnection = (ws: WSClient) => {
+  console.log("WebSocket client connected");
+  ws.isAlive = true;
+
+  ws.send(JSON.stringify({ type: "connected", message: "Connected to chat server" }));
+
+  ws.on("pong", () => onPong(ws));
+  ws.on("message", (data) => onMessage(ws, data));
+  ws.on("close", () => onClose(ws));
+};
+
+const startHeartbeat = (wss: WebSocketServer) =>
+  setInterval(() => {
     wss.clients.forEach((ws) => {
       const client = ws as WSClient;
       if (!client.isAlive) {
-        return client.terminate();
+        client.terminate();
+        return;
       }
 
       client.isAlive = false;
       client.ping();
     });
-  }, 30000);
+  }, HEARTBEAT_INTERVAL_MS);
 
-  wss.on("close", () => {
-    clearInterval(heartbeat);
-  });
+export const createWsServer = (server: Server) => {
+  const wss = new WebSocketServer({ server, path: "/ws" });
+
+  wss.on("connection", onConnection);
+
+  const heartbeat = startHeartbeat(wss);
+  wss.on("close", () => clearInterval(heartbeat));
 
   return wss;
 };
