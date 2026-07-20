@@ -49,7 +49,21 @@ export interface WSSubscribeMessage {
   chatId: string;
 }
 
-export type IncomingWSMessage = WSChatMessage | WSSubscribeMessage;
+export interface WSConfirmActionMessage {
+  type: "confirm_action";
+  chatId: string;
+}
+
+export interface WSCancelActionMessage {
+  type: "cancel_action";
+  chatId: string;
+}
+
+export type IncomingWSMessage =
+  | WSChatMessage
+  | WSSubscribeMessage
+  | WSConfirmActionMessage
+  | WSCancelActionMessage;
 
 export type UserMessage = {
   type: "user";

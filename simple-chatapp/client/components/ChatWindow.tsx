@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { ConfirmationModal, type PendingAction } from "./ConfirmationModal";
 
 interface Message {
   id: string;
@@ -17,6 +18,9 @@ interface ChatWindowProps {
   isConnected: boolean;
   isLoading: boolean;
   onSendMessage: (content: string) => void;
+  pendingAction: PendingAction | null;
+  onConfirmAction: () => void;
+  onCancelAction: () => void;
 }
 
 function ToolUseBlock({ message }: { message: Message }) {
@@ -104,6 +108,9 @@ export function ChatWindow({
   isConnected,
   isLoading,
   onSendMessage,
+  pendingAction,
+  onConfirmAction,
+  onCancelAction,
 }: ChatWindowProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -131,7 +138,14 @@ export function ChatWindow({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-white">
+    <div className="flex-1 flex flex-col bg-white relative">
+      {pendingAction && (
+        <ConfirmationModal
+          action={pendingAction}
+          onConfirm={onConfirmAction}
+          onCancel={onCancelAction}
+        />
+      )}
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
         <h2 className="font-semibold text-gray-800">Chat</h2>
         <div className="flex items-center gap-2">
@@ -174,13 +188,19 @@ export function ChatWindow({
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isConnected ? "Type a message..." : "Connecting..."}
-            disabled={!isConnected || isLoading}
+            placeholder={
+              pendingAction
+                ? "Confirm or cancel the pending action above..."
+                : isConnected
+                ? "Type a message..."
+                : "Connecting..."
+            }
+            disabled={!isConnected || isLoading || !!pendingAction}
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
           />
           <button
             type="submit"
-            disabled={!input.trim() || !isConnected || isLoading}
+            disabled={!input.trim() || !isConnected || isLoading || !!pendingAction}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Send
