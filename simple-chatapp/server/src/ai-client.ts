@@ -44,10 +44,20 @@ const WRITE_MCP_TOOLS = [
 // mapping. Still fails closed for any other role or no identity at all.
 const ADJUSTMENT_MCP_TOOLS = ["mcp__stock-mcp__create_adjustment"];
 
+// Store-to-Store Transfer is STORE_MANAGER-only, same hard-gate treatment as
+// WRITE_MCP_TOOLS — transfer-service's own FORBIDDEN_ROLE/CROSS_STORE_FORBIDDEN
+// checks remain the real security boundary.
+const TRANSFER_MCP_TOOLS = [
+  "mcp__transfer-mcp__create_transfer",
+  "mcp__transfer-mcp__list_outgoing_transfers",
+  "mcp__transfer-mcp__list_incoming_transfers",
+];
+
 export const ALLOWED_MCP_TOOLS = [
   ...READ_ONLY_MCP_TOOLS,
   ...WRITE_MCP_TOOLS,
   ...ADJUSTMENT_MCP_TOOLS,
+  ...TRANSFER_MCP_TOOLS,
 ];
 
 // Admin gets exactly these three tools and nothing else — no read-only,
