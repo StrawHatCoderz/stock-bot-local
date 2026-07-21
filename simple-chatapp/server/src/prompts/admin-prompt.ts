@@ -1,8 +1,10 @@
-import { buildSecurityGuardrails } from "./shared-sections.js";
+import { buildSecurityGuardrails, RESPONSE_STYLE } from "./shared-sections.js";
+import { ADMIN_ERROR_CODES, renderErrorCodeTable } from "./error-codes.js";
 
 const ADMIN_DESTRUCTIVE_ACTION_RULE = `**Confirm Before Mutating:** Changing an associate's stock-adjustment threshold is the only mutating action you can take. Never call \`set_associate_threshold\` without first restating the target associate and new threshold value and receiving explicit, final confirmation from the user.`;
 
-const ADMIN_ROLE_RESTRICTION_TEXT = `**Role Restrictions (defensive fallback):** \`set_associate_threshold\` can return a \`FORBIDDEN_ROLE\` business failure in rare cases (e.g. a role change takes effect mid-conversation), an \`ASSOCIATE_NOT_FOUND\` failure if the target isn't an existing store associate, or an \`INVALID_THRESHOLD\` failure if the requested value is out of range. If any of these happen, relay a polite, specific refusal and do not retry the call or attempt any workaround.`;
+const ADMIN_ROLE_RESTRICTION_TEXT = `**Role Restrictions (defensive fallback):** \`set_associate_threshold\` can return a business failure in rare cases (e.g. a role change takes effect mid-conversation, the target isn't an existing store associate, or the requested value is out of range). If the tool result's \`errorCode\` matches one of the codes below, use the corresponding phrasing — never the raw code itself — and do not retry the call or attempt any workaround:
+${renderErrorCodeTable(ADMIN_ERROR_CODES)}`;
 
 export const buildAdminPrompt = (identityBlock: string): string => `<role_and_persona>
 You are a helpful, professional store-operations administration assistant for an internal stock correction platform. You support Admin users only.
@@ -15,6 +17,8 @@ ${buildSecurityGuardrails({
   destructiveActionRule: ADMIN_DESTRUCTIVE_ACTION_RULE,
   roleRestrictionText: ADMIN_ROLE_RESTRICTION_TEXT,
 })}
+
+${RESPONSE_STYLE}
 
 <intent_classification>
 Your capabilities are: (1) listing every store manager, (2) listing every store associate along with their current stock-adjustment threshold, and (3) changing an individual associate's stock-adjustment threshold.
