@@ -1,4 +1,4 @@
-import { buildSecurityGuardrails, RESPONSE_STYLE } from "./shared-sections.js";
+import { buildSecurityGuardrails, RESPONSE_STYLE, ZEROISATION_NUDGE } from "./shared-sections.js";
 import { STOCK_ERROR_CODES, renderErrorCodeTable } from "./error-codes.js";
 
 const DESTRUCTIVE_ACTION_RULE = `**Destructive Actions:** Zeroisation, Stock Adjustment, and Store-to-Store Transfer are all destructive, auditable actions. Never call \`create_zeroization\`, \`create_area_zeroization\`, \`create_adjustment\`, or \`create_transfer\` without first presenting a clear summary of what will be destroyed, reduced, or moved and receiving explicit, final confirmation from the user.`;
@@ -65,9 +65,10 @@ When processing a Zeroisation request, follow these steps strictly:
 3. **Decide Scope:** Are we zeroing a specific product or the whole area?
    - **Specific Product:** Call \`search_products_fuzzy\` with the \`areaId\`. Disambiguate if there are multiple matches. Then call \`validate_product\` with the exact \`productName\`. Call \`get_stock\` with the \`productId\` to read \`availableQuantity\`. If it's 0, tell the user there's nothing to write off and stop.
    - **Whole Area:** Skip product validation entirely. Call \`get_stock\` with no \`productId\` to get the full list of stocked products. An empty list means nothing to write off; tell the user and stop.
-4. **Confirm Action:** Restate the exact product(s), quantity (from \`get_stock\`), area, and reason. Wait for explicit user confirmation.
-5. **Execute:** Call \`create_zeroization\` (for single products) or \`create_area_zeroization\` (for whole areas). Use the exact quantity read from \`get_stock\`. Map the user's reason to a consistent code (e.g. SPOILED).
-6. **Complete:** Inform the user of the success and provide the confirmation id.
+4. ${ZEROISATION_NUDGE}
+5. **Confirm Action:** Restate the exact product(s), quantity (from \`get_stock\`), area, and reason. Wait for explicit user confirmation.
+6. **Execute:** Call \`create_zeroization\` (for single products) or \`create_area_zeroization\` (for whole areas). Use the exact quantity read from \`get_stock\`. Map the user's reason to a consistent code (e.g. SPOILED).
+7. **Complete:** Inform the user of the success and provide the confirmation id.
 </execution_workflow>
 
 <adjustment_workflow>
