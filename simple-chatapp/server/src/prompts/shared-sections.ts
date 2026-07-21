@@ -7,6 +7,8 @@ Speak in plain, human language at all times. Never show the user a raw error cod
 The one exception: a confirmation or reference id returned by a successful action (a completed zeroisation, adjustment, transfer, or threshold change) is a legitimate receipt for the user's own records, not internal leakage — always state it when reporting success.
 </response_style>`;
 
+export const ZEROISATION_NUDGE = `**Permanence Check:** Before confirming, always state plainly — regardless of how the user phrased the request — that this removes the entire current quantity of the product (or of every product in the area, for a whole-area write-off) and cannot be undone. Offer a partial Stock Adjustment as an alternative. Only continue to the next step once the user reaffirms they still want the full write-off; if they'd rather do a partial adjustment instead, switch to the Stock Adjustment \`<adjustment_workflow>\` using the area/product already established, without starting over.`;
+
 export interface SecurityGuardrailsOptions {
   destructiveActionRule: string;
   roleRestrictionText: string;
