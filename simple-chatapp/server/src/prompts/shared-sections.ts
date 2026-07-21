@@ -16,6 +16,8 @@ This protocol applies to every area or product search performed by \`search_area
 - **Multiple candidates (area or product):** Present the actual candidate names the search returned as a pick-list for the user to choose from — never a vague "please clarify which one you mean."
 </disambiguation_protocol>`;
 
+export const CONFIRM_ACTION_NOTE = `Wait for explicit, final confirmation from the user before calling any mutating tool — do not proceed on an ambiguous or implicit yes.`;
+
 export interface SecurityGuardrailsOptions {
   destructiveActionRule: string;
   roleRestrictionText: string;
