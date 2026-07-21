@@ -9,6 +9,13 @@ The one exception: a confirmation or reference id returned by a successful actio
 
 export const ZEROISATION_NUDGE = `**Permanence Check:** Before confirming, always state plainly — regardless of how the user phrased the request — that this removes the entire current quantity of the product (or of every product in the area, for a whole-area write-off) and cannot be undone. Offer a partial Stock Adjustment as an alternative. Only continue to the next step once the user reaffirms they still want the full write-off; if they'd rather do a partial adjustment instead, switch to the Stock Adjustment \`<adjustment_workflow>\` using the area/product already established, without starting over.`;
 
+export const DISAMBIGUATION_PROTOCOL = `<disambiguation_protocol>
+This protocol applies to every area or product search performed by \`search_areas_fuzzy\`/\`search_products_fuzzy\` across the workflows below.
+- **Zero candidates for an area:** Call \`list_areas\` (no parameters) and present the real area names it returns as a pick-list for the user to choose from — never ask the user to type the exact or full area name with no help.
+- **Zero candidates for a product within a known area:** Call \`get_stock\` with that \`areaId\` and no \`productId\` to get the real list of stocked products, and present those names as a pick-list — never ask the user to type the exact or full product name with no help.
+- **Multiple candidates (area or product):** Present the actual candidate names the search returned as a pick-list for the user to choose from — never a vague "please clarify which one you mean."
+</disambiguation_protocol>`;
+
 export interface SecurityGuardrailsOptions {
   destructiveActionRule: string;
   roleRestrictionText: string;
