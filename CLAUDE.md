@@ -152,5 +152,5 @@ See [`docs/running-in-production.md`](docs/running-in-production.md) for the ful
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/004-enable-chat-transfer/00-plan.md
+at specs/006-modular-system-prompt-refactor/00-plan.md
 <!-- SPECKIT END -->
