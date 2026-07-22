@@ -26,8 +26,8 @@ it's unset.
 ## Running
 
 ```sh
-npm start          # runs build/index.js over stdio
-npm run dev         # runs src/index.ts directly via tsx, no build step
+npm start          # runs build/main.js
+npm run dev         # runs main.ts directly via tsx, no build step
 ```
 
 The server speaks MCP over stdio — it expects to be spawned as a subprocess by an
@@ -45,7 +45,7 @@ for await (const message of query({
       "stock-bot": {
         type: "stdio",
         command: "node",
-        args: ["./mcp/build/index.js"],
+        args: ["./mcp/build/main.js"],
         env: { API_BASE_URL: "http://localhost:8080" },
       },
     },
@@ -71,7 +71,7 @@ for await (const message of query({
 | `set_associate_threshold` | `PATCH /api/auth/associates/{employeeId}/threshold` |
 
 The last three (Admin-only) are served from a separate `admin-mcp` server —
-see `src/mcp-server-admin.ts` and `src/index.ts`'s `/admin` route. This
+see `src/mcp-server-admin.ts` and `src/app.ts`'s `/admin` route. This
 table predates that split and otherwise still describes the original
 stdio-based server layout; see root `CLAUDE.md` for the current SSE
 transport and per-role tool allowlists.
@@ -91,11 +91,12 @@ error (`isError: true`).
 
 ```
 mcp/
+  main.ts             # entrypoint: creates the app (src/app.ts) and starts listening
   src/
-    config.ts       # reads API_BASE_URL
-    httpClient.ts    # generic fetch wrapper, throws ApiTransportError on network/parse failure
-    toolResult.ts    # converts API responses/errors into MCP CallToolResult
-    server.ts        # registers all 7 tools
-    index.ts          # stdio entrypoint
+    app.ts            # Express app: SSE transport wiring for all four MCP servers
+    config.ts         # reads API_BASE_URL
+    http-client.ts    # generic fetch wrapper, throws ApiTransportError on network/parse failure
+    tool-result.ts    # converts API responses/errors into MCP CallToolResult
+    mcp-server-*.ts   # one createXMCPServer() per role-scoped MCP server
   build/              # tsc output (gitignored)
 ```

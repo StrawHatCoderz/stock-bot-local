@@ -1,5 +1,4 @@
-#!/usr/bin/env node
-import express from "express";
+import express, { type Express } from "express";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { createValidationMCPServer } from "./mcp-server-validation.js";
 import { createStockMCPServer } from "./mcp-server-stock.js";
@@ -7,7 +6,7 @@ import { createAdminMCPServer } from "./mcp-server-admin.js";
 import { createTransferMCPServer } from "./mcp-server-transfer.js";
 import { sessionContext } from "./context.js";
 
-const startServer = async () => {
+export const createApp = (): Express => {
   const app = express();
   app.use((req, res, next) => {
     console.log(`[REQ] ${req.method} ${req.url}`);
@@ -25,12 +24,12 @@ const startServer = async () => {
         name: "validation-mcp",
         version: "0.1.0",
       });
-      
+
       const transport = new SSEServerTransport("/validation/messages", res);
       await validationMCP.connect(transport);
-      
+
       validationTransports.set(transport.sessionId, transport);
-      
+
       res.on("close", () => {
         console.log(`Validation SSE connection closed: ${transport.sessionId}`);
         validationTransports.delete(transport.sessionId);
@@ -49,7 +48,7 @@ const startServer = async () => {
       res.status(404).send("Session not found");
       return;
     }
-    
+
     const context = {
       token: req.headers["x-session-token"] as string | undefined,
     };
@@ -67,12 +66,12 @@ const startServer = async () => {
       name: "stock-mcp",
       version: "0.1.0",
     });
-    
+
     const transport = new SSEServerTransport("/stock/messages", res);
     await stockMCP.connect(transport);
-    
+
     stockTransports.set(transport.sessionId, transport);
-    
+
     res.on("close", () => {
       console.log(`Stock SSE connection closed: ${transport.sessionId}`);
       stockTransports.delete(transport.sessionId);
@@ -87,7 +86,7 @@ const startServer = async () => {
       res.status(404).send("Session not found");
       return;
     }
-    
+
     const context = {
       token: req.headers["x-session-token"] as string | undefined,
     };
@@ -194,17 +193,5 @@ const startServer = async () => {
     res.status(500).send("Internal Server Error");
   });
 
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => {
-    console.log(`MCP Servers running on http://localhost:${port}`);
-    console.log(`- Validation MCP: http://localhost:${port}/validation`);
-    console.log(`- Stock MCP: http://localhost:${port}/stock`);
-    console.log(`- Admin MCP: http://localhost:${port}/admin`);
-    console.log(`- Transfer MCP: http://localhost:${port}/transfer`);
-  });
+  return app;
 };
-
-startServer().catch((error) => {
-  console.error("Failed to start server:", error);
-  process.exit(1);
-});

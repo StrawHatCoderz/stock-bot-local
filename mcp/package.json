@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "description": "MCP server exposing the Phase 1 Zeroisation APIs as tools over stdio",
   "type": "module",
-  "main": "build/index.js",
+  "main": "build/main.js",
   "bin": {
-    "stock-bot-mcp": "build/index.js"
+    "stock-bot-mcp": "build/main.js"
   },
   "scripts": {
     "build": "tsc",
-    "start": "node build/index.js",
-    "dev": "tsx src/index.ts"
+    "start": "node build/main.js",
+    "dev": "tsx main.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
