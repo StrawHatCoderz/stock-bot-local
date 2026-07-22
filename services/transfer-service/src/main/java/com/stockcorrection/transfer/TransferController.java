@@ -51,6 +51,20 @@ public class TransferController {
         }
     }
 
+    @GetMapping("/stores")
+    public ResponseEntity<Map<String, Object>> listStores(
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String verifiedStoreId,
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+        Role callerRole = parseRole(role);
+        if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
+            return ResponseEntity.ok(errorBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may list valid destination stores."));
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("storeIds", MockStoreData.allExcept(verifiedStoreId));
+        return ResponseEntity.ok(body);
+    }
+
     @PostMapping
     public ResponseEntity<Map<String, Object>> createTransfer(
             @RequestBody TransferRequestBody request,
