@@ -184,12 +184,17 @@ public class TransferController {
     private Map<String, Object> lineBody(MockTransferData.TransferLine line) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("productId", line.getProductId());
+        body.put("productName", line.getProductName());
         body.put("areaId", line.getAreaId());
+        body.put("areaName", line.getAreaName());
         body.put("requestedQuantity", line.getRequestedQuantity());
         body.put("status", line.getStatus());
         if ("FAILURE".equals(line.getStatus())) {
             body.put("errorCode", line.getErrorCode());
             body.put("message", line.getMessage());
+        }
+        if ("TRANSFERRED".equals(line.getStatus())) {
+            body.put("destinationAreaId", line.getDestinationAreaId());
         }
         return body;
     }
