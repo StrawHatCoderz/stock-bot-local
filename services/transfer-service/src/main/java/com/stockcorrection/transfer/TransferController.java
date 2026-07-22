@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,9 +21,11 @@ import java.util.Map;
 public class TransferController {
 
     private final TransferReserveClient reserveClient;
+    private final TransferCreditClient creditClient;
 
-    public TransferController(TransferReserveClient reserveClient) {
+    public TransferController(TransferReserveClient reserveClient, TransferCreditClient creditClient) {
         this.reserveClient = reserveClient;
+        this.creditClient = creditClient;
     }
 
     record ProductLine(String productId, String productName, String sku, String unit,
@@ -30,9 +33,15 @@ public class TransferController {
 
     record TransferRequestBody(String fromStoreId, String toStoreId, List<ProductLine> products) {}
 
+    record ApproveLine(String productId, String destinationAreaId) {}
+
+    record ApproveRequestBody(List<ApproveLine> lines) {}
+
     private enum Role { STORE_MANAGER, STORE_ASSOCIATE, ADMIN }
 
-    private enum RejectionReason { FORBIDDEN_ROLE, CROSS_STORE_FORBIDDEN, INVALID_DESTINATION_STORE, EMPTY_PRODUCT_LIST }
+    private enum RejectionReason {
+        FORBIDDEN_ROLE, CROSS_STORE_FORBIDDEN, INVALID_DESTINATION_STORE, EMPTY_PRODUCT_LIST, TRANSFER_NOT_FOUND
+    }
 
     private static Role parseRole(String role) {
         try {
@@ -74,7 +83,7 @@ public class TransferController {
                     product.areaId(), product.areaName(), product.requestedQuantity());
 
             if (product.requestedQuantity() <= 0) {
-                line.setStatus("FAILURE");
+                line.setStatus(MockTransferData.LineStatus.FAILURE);
                 line.setErrorCode("INVALID_QUANTITY");
                 line.setMessage("Requested quantity must be greater than zero.");
             } else {
@@ -90,6 +99,61 @@ public class TransferController {
                 verifiedStoreId, request.toStoreId(), employeeId, lines);
 
         return ResponseEntity.ok(successBody(created));
+    }
+
+    @PostMapping("/{transferId}/approve")
+    public ResponseEntity<Map<String, Object>> approveTransfer(
+            @PathVariable String transferId,
+            @RequestBody ApproveRequestBody request,
+            @RequestHeader("Authorization") String authorization,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String verifiedStoreId,
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+
+        Role callerRole = parseRole(role);
+        if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
+            return ResponseEntity.ok(errorBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may approve a transfer request."));
+        }
+
+        MockTransferData.TransferRequest found = MockTransferData.findById(transferId);
+        if (found == null) {
+            return ResponseEntity.ok(errorBody(RejectionReason.TRANSFER_NOT_FOUND, "No matching transfer request was found."));
+        }
+        if (!found.getToStoreId().equals(verifiedStoreId)) {
+            return ResponseEntity.ok(errorBody(RejectionReason.CROSS_STORE_FORBIDDEN, "This transfer request is not addressed to your store."));
+        }
+
+        Map<String, String> destinationAreaByProduct = new HashMap<>();
+        if (request.lines() != null) {
+            for (ApproveLine line : request.lines()) {
+                destinationAreaByProduct.put(line.productId(), line.destinationAreaId());
+            }
+        }
+
+        for (MockTransferData.TransferLine line : found.getLines()) {
+            // Re-checked immediately before mutating — a line already
+            // TRANSFERRED or FAILURE (including by a concurrent approval
+            // call) is left untouched, never re-processed.
+            if (line.getStatus() != MockTransferData.LineStatus.IN_PROGRESS) {
+                continue;
+            }
+
+            String destinationAreaId = destinationAreaByProduct.get(line.getProductId());
+            if (destinationAreaId == null) {
+                // No entry provided this call — stays IN_PROGRESS for a
+                // future approval call.
+                continue;
+            }
+
+            Map<String, Object> result = creditClient.credit(
+                    authorization, destinationAreaId, line.getProductId(),
+                    line.getProductName(), line.getSku(), line.getUnit(), line.getRequestedQuantity());
+            if (Boolean.TRUE.equals(result.get("credited"))) {
+                line.setStatus(MockTransferData.LineStatus.TRANSFERRED);
+                line.setDestinationAreaId(destinationAreaId);
+            }
+        }
+
+        return ResponseEntity.ok(transferBody(found));
     }
 
     @GetMapping("/{storeId}/outgoing")
@@ -155,9 +219,9 @@ public class TransferController {
 
     private void applyReserveResult(MockTransferData.TransferLine line, Map<String, Object> result) {
         if (Boolean.TRUE.equals(result.get("reserved"))) {
-            line.setStatus("IN_PROGRESS");
+            line.setStatus(MockTransferData.LineStatus.IN_PROGRESS);
         } else {
-            line.setStatus("FAILURE");
+            line.setStatus(MockTransferData.LineStatus.FAILURE);
             line.setErrorCode((String) result.get("errorCode"));
             line.setMessage((String) result.get("message"));
         }
@@ -188,12 +252,12 @@ public class TransferController {
         body.put("areaId", line.getAreaId());
         body.put("areaName", line.getAreaName());
         body.put("requestedQuantity", line.getRequestedQuantity());
-        body.put("status", line.getStatus());
-        if ("FAILURE".equals(line.getStatus())) {
+        body.put("status", line.getStatus().name());
+        if (line.getStatus() == MockTransferData.LineStatus.FAILURE) {
             body.put("errorCode", line.getErrorCode());
             body.put("message", line.getMessage());
         }
-        if ("TRANSFERRED".equals(line.getStatus())) {
+        if (line.getStatus() == MockTransferData.LineStatus.TRANSFERRED) {
             body.put("destinationAreaId", line.getDestinationAreaId());
         }
         return body;

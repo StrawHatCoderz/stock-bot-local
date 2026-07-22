@@ -8,23 +8,27 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 final class MockTransferData {
 
+    enum LineStatus { IN_PROGRESS, FAILURE, TRANSFERRED }
+
     static final class TransferLine {
         private final String productId;
         private final String productName;
         private final String sku;
+        private final String unit;
         private final String areaId;
         private final String areaName;
         private final long requestedQuantity;
-        private String status;
+        private LineStatus status;
         private String errorCode;
         private String message;
         private String destinationAreaId;
 
-        TransferLine(String productId, String productName, String sku,
+        TransferLine(String productId, String productName, String sku, String unit,
                      String areaId, String areaName, long requestedQuantity) {
             this.productId = productId;
             this.productName = productName;
             this.sku = sku;
+            this.unit = unit;
             this.areaId = areaId;
             this.areaName = areaName;
             this.requestedQuantity = requestedQuantity;
@@ -36,6 +40,10 @@ final class MockTransferData {
 
         String getProductName() {
             return productName;
+        }
+
+        String getUnit() {
+            return unit;
         }
 
         String getSku() {
@@ -54,11 +62,11 @@ final class MockTransferData {
             return requestedQuantity;
         }
 
-        String getStatus() {
+        LineStatus getStatus() {
             return status;
         }
 
-        void setStatus(String status) {
+        void setStatus(LineStatus status) {
             this.status = status;
         }
 
