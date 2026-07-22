@@ -16,6 +16,7 @@ enum McpTool {
   CreateTransfer = "mcp__transfer-mcp__create_transfer",
   ListOutgoingTransfers = "mcp__transfer-mcp__list_outgoing_transfers",
   ListIncomingTransfers = "mcp__transfer-mcp__list_incoming_transfers",
+  ApproveTransfer = "mcp__transfer-mcp__approve_transfer",
   ListStoreManagers = "mcp__admin-mcp__list_store_managers",
   ListStoreAssociates = "mcp__admin-mcp__list_store_associates",
   SetAssociateThreshold = "mcp__admin-mcp__set_associate_threshold",
@@ -36,6 +37,7 @@ const TOOL_GROUPS = {
     McpTool.CreateTransfer,
     McpTool.ListOutgoingTransfers,
     McpTool.ListIncomingTransfers,
+    McpTool.ApproveTransfer,
   ],
   admin: [
     McpTool.ListStoreManagers,
