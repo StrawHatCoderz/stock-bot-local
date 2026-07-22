@@ -134,5 +134,48 @@ export const createTransferMCPServer = (options: {
     },
   );
 
+  server.registerTool(
+    "approve_transfer",
+    {
+      title: "Approve Store-to-Store Transfer Request",
+      description:
+        "Approve an incoming transfer request at the caller's own store, crediting the " +
+        "confirmed destination area's stock for each eligible line. Only a store manager " +
+        "assigned to the destination store may call this. destinationAreaId for each " +
+        "product must be confirmed with the user first — either accepted from a suggested " +
+        "area or explicitly chosen from list_areas — never invented. Lines already " +
+        "transferred or failed are left untouched.",
+      inputSchema: {
+        transferId: z
+          .string()
+          .describe("The transfer request identifier, from list_incoming_transfers."),
+        lines: z
+          .array(
+            z.object({
+              productId: z.string(),
+              destinationAreaId: z
+                .string()
+                .describe(
+                  "The destination-store area confirmed by the manager to receive this product.",
+                ),
+            }),
+          )
+          .describe("One entry per product the manager is ready to approve this call."),
+      },
+    },
+    async ({ transferId, lines }) => {
+      try {
+        const token = getSessionToken();
+        const result = await callApi("POST", `/api/transfer/${transferId}/approve`, {
+          token,
+          body: { lines },
+        });
+        return apiResultToToolResult(result);
+      } catch (err) {
+        return errorToToolResult(err);
+      }
+    },
+  );
+
   return server;
 };
