@@ -25,7 +25,8 @@ public class TransferController {
         this.reserveClient = reserveClient;
     }
 
-    record ProductLine(String productId, String areaId, long requestedQuantity) {}
+    record ProductLine(String productId, String productName, String sku, String unit,
+                        String areaId, String areaName, long requestedQuantity) {}
 
     record TransferRequestBody(String fromStoreId, String toStoreId, List<ProductLine> products) {}
 
@@ -69,7 +70,8 @@ public class TransferController {
         List<MockTransferData.TransferLine> lines = new ArrayList<>();
         for (ProductLine product : request.products()) {
             MockTransferData.TransferLine line = new MockTransferData.TransferLine(
-                    product.productId(), product.areaId(), product.requestedQuantity());
+                    product.productId(), product.productName(), product.sku(), product.unit(),
+                    product.areaId(), product.areaName(), product.requestedQuantity());
 
             if (product.requestedQuantity() <= 0) {
                 line.setStatus("FAILURE");
