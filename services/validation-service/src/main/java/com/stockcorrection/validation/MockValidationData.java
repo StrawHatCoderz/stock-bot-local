@@ -19,7 +19,12 @@ final class MockValidationData {
     static final List<Area> AREAS = List.of(
             new Area("AREA-10", "STORE-101", "Refrigerator X", "REFRIGERATOR"),
                 new Area("AREA-11", "STORE-101", "Backroom Storage", "STORAGE"),
-            new Area("AREA-20", "STORE-102", "Freezer Section", "FREEZER")
+            new Area("AREA-20", "STORE-102", "Freezer Section", "FREEZER"),
+            // Mirrored area names across stores so a transfer's source area
+            // has a real, closely-matching destination candidate to suggest
+            // during approval (specs/007-transfer-approval, User Story 3).
+            new Area("AREA-12", "STORE-101", "Freezer Section", "FREEZER"),
+            new Area("AREA-21", "STORE-102", "Refrigerator X", "REFRIGERATOR")
     );
 
     static final List<Product> PRODUCTS = List.of(
