@@ -1,5 +1,7 @@
 package com.stockcorrection.stock;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -47,26 +49,44 @@ final class MockStockData {
         }
     }
 
-    static final List<StockItem> STOCK = List.of(
+    // A synchronized, growable list rather than List.of(...) — a transfer
+    // credit can insert a brand-new row for a store/area/product combination
+    // that has never been stocked before (see specs/007-transfer-approval).
+    private static final List<StockItem> STOCK = Collections.synchronizedList(new ArrayList<>(List.of(
             new StockItem("STORE-101", "AREA-10", "PROD-501", "SKU-100501", "Eggs", "BOX", 120),
             new StockItem("STORE-101", "AREA-10", "PROD-502", "SKU-100502", "Milk 1L", "BOX", 40),
             // Already zero on purpose — exercises the "nothing to write off" path.
             new StockItem("STORE-101", "AREA-10", "PROD-503", "SKU-100503", "Butter", "BOX", 0),
             new StockItem("STORE-101", "AREA-11", "PROD-504", "SKU-100504", "Cardboard Boxes", "PCS", 500),
             new StockItem("STORE-102", "AREA-20", "PROD-601", "SKU-200601", "Ice Cream Tub", "BOX", 60)
-    );
+    )));
 
     static StockItem find(String storeId, String areaId, String productId) {
-        return STOCK.stream()
-                .filter(s -> s.storeId.equals(storeId) && s.areaId.equals(areaId) && s.productId.equals(productId))
-                .findFirst()
-                .orElse(null);
+        synchronized (STOCK) {
+            return STOCK.stream()
+                    .filter(s -> s.storeId.equals(storeId) && s.areaId.equals(areaId) && s.productId.equals(productId))
+                    .findFirst()
+                    .orElse(null);
+        }
     }
 
     static List<StockItem> findByArea(String storeId, String areaId) {
-        return STOCK.stream()
-                .filter(s -> s.storeId.equals(storeId) && s.areaId.equals(areaId))
-                .collect(Collectors.toList());
+        synchronized (STOCK) {
+            return STOCK.stream()
+                    .filter(s -> s.storeId.equals(storeId) && s.areaId.equals(areaId))
+                    .collect(Collectors.toList());
+        }
+    }
+
+    /**
+     * Inserts a brand-new row — used when a transfer credit targets a
+     * store/area/product combination with no existing stock record.
+     */
+    static StockItem insert(String storeId, String areaId, String productId,
+                             String productName, String sku, String unit, long quantity) {
+        StockItem created = new StockItem(storeId, areaId, productId, sku, productName, unit, quantity);
+        STOCK.add(created);
+        return created;
     }
 
     private MockStockData() {}
