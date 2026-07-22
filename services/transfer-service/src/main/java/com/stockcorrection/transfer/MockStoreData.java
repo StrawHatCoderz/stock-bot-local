@@ -1,5 +1,6 @@
 package com.stockcorrection.transfer;
 
+import java.util.List;
 import java.util.Set;
 
 final class MockStoreData {
@@ -8,6 +9,10 @@ final class MockStoreData {
 
     static boolean exists(String storeId) {
         return STORE_IDS.contains(storeId);
+    }
+
+    static List<String> allExcept(String storeId) {
+        return STORE_IDS.stream().filter(id -> !id.equals(storeId)).sorted().toList();
     }
 
     private MockStoreData() {}
