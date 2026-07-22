@@ -36,11 +36,19 @@ export const createTransferMCPServer = (options: {
           .array(
             z.object({
               productId: z.string(),
+              productName: z
+                .string()
+                .describe("From a prior validate_product call — never invented."),
+              sku: z.string().describe("From a prior validate_product call."),
+              unit: z.string().describe("From a prior get_stock/validate_product call."),
               areaId: z
                 .string()
                 .describe(
                   "The source area within fromStoreId that currently holds this product.",
                 ),
+              areaName: z
+                .string()
+                .describe("From a prior validate_area call — never invented."),
               requestedQuantity: z
                 .number()
                 .describe(
