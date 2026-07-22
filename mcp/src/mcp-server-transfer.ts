@@ -11,6 +11,26 @@ export const createTransferMCPServer = (options: {
   const server = new McpServer(options);
 
   server.registerTool(
+    "list_stores",
+    {
+      title: "List Valid Destination Stores",
+      description:
+        "List every store the caller could send a Store-to-Store Transfer to (their own " +
+        "store is excluded). Store manager only.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const token = getSessionToken();
+        const result = await callApi("GET", "/api/transfer/stores", { token });
+        return apiResultToToolResult(result);
+      } catch (err) {
+        return errorToToolResult(err);
+      }
+    },
+  );
+
+  server.registerTool(
     "create_transfer",
     {
       title: "Create Store-to-Store Transfer",
