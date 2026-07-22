@@ -59,6 +59,10 @@ export const STOCK_ERROR_CODES: ErrorCodeEntry[] = [
     code: "AREA_OR_PRODUCT_NOT_FOUND",
     humanPhrase: "I couldn't match that area or product for this line.",
   },
+  {
+    code: "TRANSFER_NOT_FOUND",
+    humanPhrase: "I couldn't find a transfer request with that id.",
+  },
 ];
 
 export const renderErrorCodeTable = (entries: ErrorCodeEntry[]): string =>
