@@ -36,6 +36,9 @@ public class StockController {
 
     record TransferReserveRequest(String areaId, String productId, long requestedQuantity) {}
 
+    record TransferCreditRequest(
+            String areaId, String productId, String productName, String sku, String unit, long quantity) {}
+
     private enum Role { STORE_MANAGER, STORE_ASSOCIATE, ADMIN }
 
     private static Role parseRole(String role) {
@@ -257,6 +260,32 @@ public class StockController {
         return ResponseEntity.ok(body);
     }
 
+    @PostMapping("/transfer-credit")
+    public ResponseEntity<Map<String, Object>> createTransferCredit(
+            @RequestBody TransferCreditRequest request,
+            @RequestAttribute(TokenAuthFilter.ATTR_STORE_ID) String storeId,
+            @RequestAttribute(TokenAuthFilter.ATTR_ROLE) String role) {
+        Role callerRole = parseRole(role);
+        if (callerRole == null || !callerRole.equals(Role.STORE_MANAGER)) {
+            return ResponseEntity.ok(transferCreditForbiddenRoleBody());
+        }
+
+        MockStockData.StockItem item = MockStockData.find(storeId, request.areaId(), request.productId());
+        boolean created = item == null;
+        if (created) {
+            item = MockStockData.insert(storeId, request.areaId(), request.productId(),
+                    request.productName(), request.sku(), request.unit(), request.quantity());
+        } else {
+            item.setQuantity(item.getQuantity() + request.quantity());
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("credited", true);
+        body.put("created", created);
+        body.put("resultingQuantity", item.getQuantity());
+        return ResponseEntity.ok(body);
+    }
+
     /**
      * Checks a Store Associate's requested reduction (already expressed as a
      * percentage of the product's current on-hand quantity) against the
@@ -355,6 +384,14 @@ public class StockController {
         body.put("reserved", false);
         body.put("errorCode", "TRANSFER_EXCEEDS_AVAILABLE");
         body.put("message", "Requested quantity exceeds available stock.");
+        return body;
+    }
+
+    private Map<String, Object> transferCreditForbiddenRoleBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("credited", false);
+        body.put("errorCode", "FORBIDDEN_ROLE");
+        body.put("message", "Only store managers can complete a transfer approval.");
         return body;
     }
 }
