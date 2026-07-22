@@ -10,15 +10,23 @@ final class MockTransferData {
 
     static final class TransferLine {
         private final String productId;
+        private final String productName;
+        private final String sku;
         private final String areaId;
+        private final String areaName;
         private final long requestedQuantity;
         private String status;
         private String errorCode;
         private String message;
+        private String destinationAreaId;
 
-        TransferLine(String productId, String areaId, long requestedQuantity) {
+        TransferLine(String productId, String productName, String sku,
+                     String areaId, String areaName, long requestedQuantity) {
             this.productId = productId;
+            this.productName = productName;
+            this.sku = sku;
             this.areaId = areaId;
+            this.areaName = areaName;
             this.requestedQuantity = requestedQuantity;
         }
 
@@ -26,8 +34,20 @@ final class MockTransferData {
             return productId;
         }
 
+        String getProductName() {
+            return productName;
+        }
+
+        String getSku() {
+            return sku;
+        }
+
         String getAreaId() {
             return areaId;
+        }
+
+        String getAreaName() {
+            return areaName;
         }
 
         long getRequestedQuantity() {
@@ -56,6 +76,14 @@ final class MockTransferData {
 
         void setMessage(String message) {
             this.message = message;
+        }
+
+        String getDestinationAreaId() {
+            return destinationAreaId;
+        }
+
+        void setDestinationAreaId(String destinationAreaId) {
+            this.destinationAreaId = destinationAreaId;
         }
     }
 
@@ -125,6 +153,13 @@ final class MockTransferData {
                 .filter(r -> r.getToStoreId().equals(storeId))
                 .sorted(Comparator.comparing(TransferRequest::getCreatedAt).reversed())
                 .toList();
+    }
+
+    static synchronized TransferRequest findById(String transferId) {
+        return REQUESTS.stream()
+                .filter(r -> r.getTransferId().equals(transferId))
+                .findFirst()
+                .orElse(null);
     }
 
     private MockTransferData() {}
