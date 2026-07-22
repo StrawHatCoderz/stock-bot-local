@@ -18,30 +18,25 @@ export const createApp = (): Express => {
   const stockTransports = new Map<string, SSEServerTransport>();
 
   app.get("/validation", async (req, res) => {
-    try {
-      console.log("New Validation SSE connection established");
-      const validationMCP = createValidationMCPServer({
-        name: "validation-mcp",
-        version: "0.1.0",
-      });
+    console.log("New Validation SSE connection established");
+    const validationMCP = createValidationMCPServer({
+      name: "validation-mcp",
+      version: "0.1.0",
+    });
 
-      const transport = new SSEServerTransport("/validation/messages", res);
-      await validationMCP.connect(transport);
+    const transport = new SSEServerTransport("/validation/messages", res);
+    await validationMCP.connect(transport);
 
-      validationTransports.set(transport.sessionId, transport);
+    validationTransports.set(transport.sessionId, transport);
 
-      res.on("close", () => {
-        console.log(`Validation SSE connection closed: ${transport.sessionId}`);
-        validationTransports.delete(transport.sessionId);
-        validationMCP.close();
-      });
-    } catch (err) {
-      console.error("Error in GET /validation:", err);
-      if (!res.headersSent) res.status(500).send("Internal Server Error");
-    }
+    res.on("close", () => {
+      console.log(`Validation SSE connection closed: ${transport.sessionId}`);
+      validationTransports.delete(transport.sessionId);
+      validationMCP.close();
+    });
   });
 
-  app.post("/validation/messages", async (req, res) => {
+  app.post("/validation/messages", async (req, res, next) => {
     const sessionId = req.query.sessionId as string;
     const transport = validationTransports.get(sessionId);
     if (!transport) {
@@ -56,6 +51,7 @@ export const createApp = (): Express => {
     sessionContext.run(context, () => {
       transport.handlePostMessage(req, res, req.body).catch((e) => {
         console.error("Validation MCP Message Error:", e);
+        next(e);
       });
     });
   });
@@ -79,7 +75,7 @@ export const createApp = (): Express => {
     });
   });
 
-  app.post("/stock/messages", async (req, res) => {
+  app.post("/stock/messages", async (req, res, next) => {
     const sessionId = req.query.sessionId as string;
     const transport = stockTransports.get(sessionId);
     if (!transport) {
@@ -94,6 +90,7 @@ export const createApp = (): Express => {
     sessionContext.run(context, () => {
       transport.handlePostMessage(req, res, req.body).catch((e) => {
         console.error("Stock MCP Message Error:", e);
+        next(e);
       });
     });
   });
@@ -101,30 +98,25 @@ export const createApp = (): Express => {
   const adminTransports = new Map<string, SSEServerTransport>();
 
   app.get("/admin", async (req, res) => {
-    try {
-      console.log("New Admin SSE connection established");
-      const adminMCP = createAdminMCPServer({
-        name: "admin-mcp",
-        version: "0.1.0",
-      });
+    console.log("New Admin SSE connection established");
+    const adminMCP = createAdminMCPServer({
+      name: "admin-mcp",
+      version: "0.1.0",
+    });
 
-      const transport = new SSEServerTransport("/admin/messages", res);
-      await adminMCP.connect(transport);
+    const transport = new SSEServerTransport("/admin/messages", res);
+    await adminMCP.connect(transport);
 
-      adminTransports.set(transport.sessionId, transport);
+    adminTransports.set(transport.sessionId, transport);
 
-      res.on("close", () => {
-        console.log(`Admin SSE connection closed: ${transport.sessionId}`);
-        adminTransports.delete(transport.sessionId);
-        adminMCP.close();
-      });
-    } catch (err) {
-      console.error("Error in GET /admin:", err);
-      if (!res.headersSent) res.status(500).send("Internal Server Error");
-    }
+    res.on("close", () => {
+      console.log(`Admin SSE connection closed: ${transport.sessionId}`);
+      adminTransports.delete(transport.sessionId);
+      adminMCP.close();
+    });
   });
 
-  app.post("/admin/messages", async (req, res) => {
+  app.post("/admin/messages", async (req, res, next) => {
     const sessionId = req.query.sessionId as string;
     const transport = adminTransports.get(sessionId);
     if (!transport) {
@@ -139,6 +131,7 @@ export const createApp = (): Express => {
     sessionContext.run(context, () => {
       transport.handlePostMessage(req, res, req.body).catch((e) => {
         console.error("Admin MCP Message Error:", e);
+        next(e);
       });
     });
   });
