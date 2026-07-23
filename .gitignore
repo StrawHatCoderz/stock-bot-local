@@ -26,8 +26,13 @@ out/
 notes/
 .specify
 .claude
+.agents
 scratch/
 todo.md
 .superpowers
 docs
 specs
+.mcp.json
+skills-lock.json
+# Added by code-review-graph
+.code-review-graph/

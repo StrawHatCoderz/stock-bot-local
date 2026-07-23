@@ -23,7 +23,7 @@ cd services
 docker-compose up --build   # starts auth/validation/stock/transfer + nginx gateway
 ```
 
-The gateway is the only container that publishes a host port: **`http://localhost:8080`** (see `services/docker-compose.yml` — `api-gateway` maps `8080:80`). The three backend containers aren't reachable directly in this mode. `mcp/.env.example` and `simple-chatapp/server/.env` already default their base URLs to `:8080`, matching this gateway port. Inside the root `docker-compose.yml`, `mcp` and `chatapp` instead point at the container network name (`http://api-gateway:80`) rather than the host port — see "Environment variables" below.
+The gateway is the only container that publishes a host port: **`http://localhost:8080`** (see `services/docker-compose.yml` — `api-gateway` maps `8080:80`). The four backend containers aren't reachable directly in this mode. `mcp/.env.example` and `simple-chatapp/server/.env` already default their base URLs to `:8080`, matching this gateway port. Inside the root `docker-compose.yml`, `mcp` and `chatapp` instead point at the container network name (`http://api-gateway:80`) rather than the host port — see "Environment variables" below.
 
 Or run each service individually with Gradle, hitting each port directly (no gateway):
 ```bash
@@ -77,7 +77,7 @@ Browser (React/Vite :5173)
 Express server (:3001, server/main.ts → src/app.ts + src/ws-server.ts)
     ├── POST /api/auth/login → calls Java auth-service directly (not via agent)
     └── WebSocket → AgentSession (Claude Agent SDK, src/models/agent-session.ts)
-                        ↕ SSE (3 MCP clients configured — validation-mcp, stock-mcp, admin-mcp; a token header carries identity per-request)
+                        ↕ SSE (4 MCP clients configured — validation-mcp, stock-mcp, admin-mcp, transfer-mcp; a token header carries identity per-request)
                     mcp/main.ts → src/app.ts (Express, PORT default 3000)
                         ├── GET/POST /validation → validation-mcp
                         ├── GET/POST /stock      → stock-mcp
@@ -103,7 +103,7 @@ Full rationale for each of these lives in [`ARCHITECTURE.md`](ARCHITECTURE.md) �
 
 **Agent model:** `claude-sonnet-5` (set in `simple-chatapp/server/src/models/agent-session.ts`).
 
-**Allowed tools** (`TOOL_GROUPS`/`ROLE_TOOLS` in `ai-client.ts`, a `McpTool` string-enum grouped by capability): `read` — `search_areas_fuzzy`, `search_products_fuzzy`, `validate_area`, `validate_product`, `list_areas` (validation-mcp), `get_stock` (stock-mcp); `adjustments` — `create_adjustment`, `get_adjustment_threshold` (stock-mcp); `zeroization` — `create_zeroization`, `create_area_zeroization` (stock-mcp); `transfers` — `create_transfer`, `list_outgoing_transfers`, `list_incoming_transfers`, `approve_transfer`, `list_stores` (transfer-mcp); `admin` — `list_store_managers`, `list_store_associates`, `set_associate_threshold` (admin-mcp). `list_areas` returns every area in the caller's store with no params — for "what areas exist" questions, bypassing fuzzy-search-then-validate. `agent-session.ts` doesn't pass a tool list directly — `getAllowedToolsForRole(identity?.role)` returns `read`+`adjustments`+`zeroization`+`transfers` (15 tools) for `STORE_MANAGER` sessions, `read`+`adjustments` (8 tools) for `STORE_ASSOCIATE` sessions (dropping zeroization and every transfer tool, which stay Manager-only), just `admin` (3 tools) for `ADMIN` sessions, and only `read` (6 tools) for anyone else, including no-identity sessions. `create_adjustment`'s own per-role quantity floor (an Associate's request can't reduce a product to exactly 0) is enforced authoritatively by `StockController.java`, not by this tool-list gate — see "RBAC is enforced authoritatively in `stock-service`" above. Same for the per-associate, per-product depleting adjustment threshold (also enforced in `StockController.java`) — see "Admin is a third role" above.
+**Allowed tools**: `ai-client.ts`'s `TOOL_GROUPS`/`ROLE_TOOLS` gate which of the 18 MCP tools each role's session can invoke — a hard, code-level gate the SDK enforces regardless of what the model decides. Full role × tool table in [`ARCHITECTURE.md`](ARCHITECTURE.md#role--tool-access).
 
 **Fuzzy search before exact validation.** The system prompt instructs the agent to call `search_areas_fuzzy`/`search_products_fuzzy` first to get candidates, disambiguate with the user if there are multiple, then call `validate_area`/`validate_product`.
 
@@ -139,13 +139,25 @@ Full rationale for each of these lives in [`ARCHITECTURE.md`](ARCHITECTURE.md) �
 - `ANTHROPIC_API_KEY` — required; substituted into the `chatapp` container's env at runtime (not baked into the image)
 - `COMPOSE_PARALLEL_LIMIT` — optional, caps concurrent service builds
 
-See [`docs/running-in-production.md`](docs/running-in-production.md) for the full docker-compose walkthrough.
+## Documentation map
 
-## Planning docs
+This file is agent-operating guidance only — commands, conventions, and
+gotchas. It intentionally does not hold architecture narrative. For that:
 
-`docs/phase-1/` has the Phase 1 spec docs — `design_spec.md` (end-to-end flow, intent-recognition rules, fuzzy-before-validate) is accurate and matches the current implementation. `technical_spec.md` predates the SSE migration and still describes the MCP server as stdio-based — don't trust its transport description. `implementation_spec.md` describes `node-ci.yml`/`java-ci.yml`/`e2e.yml` CI workflows that were never built — there's no `.github/` directory anywhere in the repo — so don't trust its CI/process claims either. `specs/001-mcp-http-migration/` is the (completed) spec for that stdio→SSE migration; useful as history, but its file-naming placeholders (`server.js`, `mcp-server-1.js`/`2.js`) don't match the real files (`index.ts`, `mcp-server-validation.ts`, `mcp-server-stock.ts`).
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — the single source of truth for
+  cross-component design decisions (identity flow, RBAC, Transfer
+  lifecycle, system prompt structure), with diagrams.
+- [`README.md`](README.md), [`services/README.md`](services/README.md),
+  [`mcp/README.md`](mcp/README.md), [`simple-chatapp/README.md`](simple-chatapp/README.md)
+  — lightweight, per-component setup/usage docs.
+- `simple-chatapp/CLAUDE.md` — the same kind of agent-operating guidance as
+  this file, scoped to the chat app.
 
-`simple-chatapp/CLAUDE.md` has chat-app-internal notes (identity flow, system prompt structure, per-file breakdown of `server/src/`) and is accurate and up to date — safe to rely on for chat-app implementation detail beyond what's summarized here.
+`specs/NNN-feature-name/` directories (speckit output) and `docs/` are both
+gitignored in this repo — they may not exist in every checkout, and their
+absence doesn't mean anything is missing from the tracked docs above. Don't
+treat a stale or missing `specs/`/`docs/` file as authoritative over
+`ARCHITECTURE.md` or a component's `README.md`.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
