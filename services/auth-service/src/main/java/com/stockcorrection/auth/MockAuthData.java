@@ -38,7 +38,18 @@ final class MockAuthData {
             // System-wide Admin — deliberately storeless (assignedTo null),
             // unlike user003 this is expected and must not trip UNAUTHORIZED_MANAGER.
             new Employee("user006", "password123", "EMP-1005", "1005",
-                    "User 006", "user006@example.com", null, "ADMIN")
+                    "User 006", "user006@example.com", null, "ADMIN"),
+            // Managers of the 4 new stores added for nearby-store-suggestion
+            // demonstrability — each is a fully real destination, not just a
+            // listing entry, so a transfer to it can be approved end to end.
+            new Employee("user007", "password123", "EMP-1007", "1007",
+                    "User 007", "user007@example.com", "STORE-103", "STORE_MANAGER"),
+            new Employee("user008", "password123", "EMP-1008", "1008",
+                    "User 008", "user008@example.com", "STORE-104", "STORE_MANAGER"),
+            new Employee("user009", "password123", "EMP-1009", "1009",
+                    "User 009", "user009@example.com", "STORE-105", "STORE_MANAGER"),
+            new Employee("user010", "password123", "EMP-1010", "1010",
+                    "User 010", "user010@example.com", "STORE-106", "STORE_MANAGER")
     );
 
     static Employee findByUsername(String username) {

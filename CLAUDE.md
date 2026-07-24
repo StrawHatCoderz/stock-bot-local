@@ -125,6 +125,12 @@ Full rationale for each of these lives in [`ARCHITECTURE.md`](ARCHITECTURE.md) �
 | `user004` | STORE_ASSOCIATE | STORE-101 | passes login; hits `FORBIDDEN_ROLE` on zeroisation tools, but can use `create_adjustment` (subject to `ZERO_ADJUSTMENT_REQUIRES_MANAGER` if the request would zero the product out, and `ADJUSTMENT_EXCEEDS_THRESHOLD` per its Admin-set threshold — seeded at 5%) |
 | `user005` | STORE_ASSOCIATE | STORE-102 | second real associate (seeded threshold 12%), for exercising per-associate threshold independence |
 | `user006` | ADMIN | *(none — system-wide)* | passes login despite having no `assignedTo` (Admin is exempt from the `UNAUTHORIZED_MANAGER` gate, unlike `user003`); can list managers/associates and set an associate's threshold; structurally cannot call any zeroisation/adjustment/validation tool |
+| `user007` | STORE_MANAGER | STORE-103 | manager of a nearby-store-suggestion destination store — real login + a seeded area, so a transfer to `STORE-103` can be approved end to end, not just listed |
+| `user008` | STORE_MANAGER | STORE-104 | same as `user007`, for `STORE-104` |
+| `user009` | STORE_MANAGER | STORE-105 | same as `user007`, for `STORE-105` |
+| `user010` | STORE_MANAGER | STORE-106 | same as `user007`, for `STORE-106` |
+
+`transfer-service`'s `MockStoreData` now recognizes 6 stores (`STORE-101`–`STORE-106`), each with a `latitude`/`longitude` — see [`ARCHITECTURE.md`](ARCHITECTURE.md#store-to-store-transfer) for the distance-ranked `list_stores` contract.
 
 ## Environment variables
 
@@ -159,8 +165,3 @@ absence doesn't mean anything is missing from the tracked docs above. Don't
 treat a stale or missing `specs/`/`docs/` file as authoritative over
 `ARCHITECTURE.md` or a component's `README.md`.
 
-<!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
-at specs/007-transfer-approval/00-plan.md
-<!-- SPECKIT END -->

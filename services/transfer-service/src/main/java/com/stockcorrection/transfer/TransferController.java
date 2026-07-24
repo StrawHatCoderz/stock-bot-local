@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,8 +61,23 @@ public class TransferController {
             return ResponseEntity.ok(errorBody(RejectionReason.FORBIDDEN_ROLE, "Only store managers may list valid destination stores."));
         }
 
+        MockStoreData.Store callerStore = MockStoreData.findByStoreId(verifiedStoreId);
+        List<Map<String, Object>> stores = MockStoreData.all().stream()
+                .filter(s -> !s.storeId().equals(verifiedStoreId))
+                .map(s -> Map.entry(s, GeoDistance.haversineKm(
+                        callerStore.latitude(), callerStore.longitude(), s.latitude(), s.longitude())))
+                .sorted(Comparator.<Map.Entry<MockStoreData.Store, Double>>comparingDouble(Map.Entry::getValue)
+                        .thenComparing(e -> e.getKey().storeId()))
+                .map(e -> {
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("storeId", e.getKey().storeId());
+                    entry.put("distanceKm", e.getValue());
+                    return entry;
+                })
+                .toList();
+
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("storeIds", MockStoreData.allExcept(verifiedStoreId));
+        body.put("stores", stores);
         return ResponseEntity.ok(body);
     }
 

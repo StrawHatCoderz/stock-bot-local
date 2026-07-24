@@ -24,7 +24,14 @@ final class MockValidationData {
             // has a real, closely-matching destination candidate to suggest
             // during approval (specs/007-transfer-approval, User Story 3).
             new Area("AREA-12", "STORE-101", "Freezer Section", "FREEZER"),
-            new Area("AREA-21", "STORE-102", "Refrigerator X", "REFRIGERATOR")
+            new Area("AREA-21", "STORE-102", "Refrigerator X", "REFRIGERATOR"),
+            // One area per new store added for nearby-store-suggestion, reusing
+            // an existing area name so the approval workflow's area-suggestion
+            // step (list_areas) has a real, closely-matching candidate here too.
+            new Area("AREA-30", "STORE-103", "Refrigerator X", "REFRIGERATOR"),
+            new Area("AREA-40", "STORE-104", "Freezer Section", "FREEZER"),
+            new Area("AREA-50", "STORE-105", "Refrigerator X", "REFRIGERATOR"),
+            new Area("AREA-60", "STORE-106", "Freezer Section", "FREEZER")
     );
 
     static final List<Product> PRODUCTS = List.of(
